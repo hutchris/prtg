@@ -1,0 +1,8 @@
+prtg_host:
+  "127.0.0.1"
+prtg_user:
+  "prtgadmin"
+prtg_hash:
+  "000000000000"
+include_channels:
+  False
