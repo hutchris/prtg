@@ -15,10 +15,29 @@ prtg = prtg_api()
 
 prtg.allgroups[3].devices
 ```
+Probe and group objects can have groups and devices as children, device objects have sensors as children and sensors can have channels as children.
+```
+from prtg import prtg_api
 
-Current methods include:
+prtg = prtg_api()
+
+probeobject = prtg.allprobes[0]
+groups = probobject.groups
+devices = probobject.devices
+
+deviceobject = devices[0]
+sensors = deviceobject.sensors
+
+sensorobject = sensors[0]
+sensorobject.get_channels()
+
+channel = sensorobject.channels[0]
+```
+
+
+Current methods on all objects include:
 - rename
-- pause
+- pause (pause and resume on a channel will change the parent sensor)
 - resume
 - clone
 - delete
