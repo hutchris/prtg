@@ -4,5 +4,3 @@ prtg_user:
   "prtgadmin"
 prtg_hash:
   "000000000000"
-include_channels:
-  False
