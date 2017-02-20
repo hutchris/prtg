@@ -1,7 +1,9 @@
 # prtg
 Python module to manage PRTG servers
 
-Python module to facilitate managing PRTG servers from CLI or for automating changes.
+This is a Python module to facilitate in managing PRTG servers from CLI or for automating changes.
+
+The first thing you should do is edit the config.yml file and add your username and passhash. You can find this in the settings page for your user account. There is also an API call you can make which returns it. 
 
 Upon initialisation the entire device tree is downloaded and each probe, group, device, sensor and channel is provided as a modifiable object. From the main object (called prtg in example) you can access all objects in the tree using the prtg.allprobes, prtg.allgroups, prtg.alldevices and prtg.allsensors attributes. The channels are not available by default, you must run sensor.get_channels() to the get the child channels of that sensor.
 
@@ -25,6 +27,7 @@ Current methods include:
 To come:
 - set property
 - move
+- get passhash
 
 If you are making small changes such as pause, resume, rename; the local data will update as you go. If you are doing larger changes you should refresh the data after each change. If you refresh the main prtg object it will refresh everything otherwise you can just refresh an object further down the tree to only refresh part of the local data. To refresh an object call the .refresh() method.
 
