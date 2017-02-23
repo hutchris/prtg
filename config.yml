@@ -1,3 +1,7 @@
+protocol:
+  "https"
+port:
+  "443"
 prtg_host:
   "127.0.0.1"
 prtg_user:
