@@ -4,6 +4,7 @@ Python module to manage PRTG servers
 Prerequisites:
 - bs4 (BeautifulSoup)
 - requests
+- lxml
 
 Tested only on Python 3.5.2 so far.
 
