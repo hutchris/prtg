@@ -5,6 +5,7 @@ Prerequisites:
 - bs4 (BeautifulSoup)
 - requests
 - lxml
+- yml
 
 Tested only on Python 3.5.2 so far.
 
