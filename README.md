@@ -1,6 +1,12 @@
 # prtg
 Python module to manage PRTG servers
 
+Prerequisites:
+- bs4 (BeautifulSoup)
+- requests
+
+Tested only on Python 3.5.2 so far.
+
 This is a Python module to facilitate in managing PRTG servers from CLI or for automating changes.
 
 The first thing you should do is edit the config.yml file and add your username and passhash. You can find this in the settings page for your user account. There is also an API call you can make which returns it. 
