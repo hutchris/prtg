@@ -41,7 +41,7 @@ class prtg_api(baseconfig):
 		if req.status_code == 401:
 			raise(AuthenticationError("PRTG authentication failed. Check credentials in config file"))
 		elif req.status_code == 404:
-			raise(ResourceNotFound("No resource at URL used: {0}".format(self.tree_url)))
+			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
 		raw_data = req.text
 		treesoup = BeautifulSoup(raw_data,"lxml")
 		return(treesoup)
