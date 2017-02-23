@@ -38,6 +38,10 @@ class prtg_api(baseconfig):
 		else:
 			tree_url = "{base}table.xml?content=sensortree&output=xml&{auth}".format(base=self.base_url,auth=self.url_auth)
 		req = requests.get(tree_url,verify=False)
+		if req.status_code == 401:
+			raise(AuthenticationError("PRTG authentication failed. Check credentials in config file"))
+		elif req.status_code == 404:
+			raise(ResourceNotFound("No resource at URL used: {0}".format(self.tree_url)))
 		raw_data = req.text
 		treesoup = BeautifulSoup(raw_data,"lxml")
 		return(treesoup)
@@ -285,4 +289,8 @@ class group(prtg_api):
 class probe(group):		
 	pass
 			
-	
+class AuthenticationError(Exception):
+	pass
+
+class ResourceNotFound(Exception):
+	pass
