@@ -11,10 +11,16 @@ class baseconfig(object):
 		directory = os.path.dirname(os.path.abspath(__file__))
 		with open(os.path.join(directory,"config.yml"), 'r') as ymlfile:
 			cfg = yaml.load(ymlfile)
+		self.protocol = cfg['protocol']
+		self.port = cfg['port']
 		self.prtg_host = cfg['prtg_host']
 		self.prtg_user = cfg['prtg_user']
 		self.prtg_hash = cfg['prtg_hash']
-		self.base_url = "https://{host}/api/".format(host=self.prtg_host)
+		if (self.protocol == "https" and self.port == "443") or (self.protocol == "http" and self.port == "80"):
+			self.port == ""
+		else:
+			self.port = ":{0}".format(self.port)
+		self.base_url = "{protocol}://{host}{port}/api/".format(protocol=self.protocol,host=self.prtg_host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.prtg_user,passhash=self.prtg_hash)
 	allprobes = []
 	allgroups = []
