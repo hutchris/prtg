@@ -16,10 +16,7 @@ class baseconfig(object):
 		self.prtg_host = cfg['prtg_host']
 		self.prtg_user = cfg['prtg_user']
 		self.prtg_hash = cfg['prtg_hash']
-		if (self.protocol == "https" and self.port == "443") or (self.protocol == "http" and self.port == "80"):
-			self.port == ""
-		else:
-			self.port = ":{0}".format(self.port)
+		self.port = ":{0}".format(self.port)
 		self.base_url = "{protocol}://{host}{port}/api/".format(protocol=self.protocol,host=self.prtg_host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.prtg_user,passhash=self.prtg_hash)
 	allprobes = []
@@ -39,7 +36,7 @@ class prtg_api(baseconfig):
 		self.status_raw = self.treesoup.group.status_raw.string
 		self.active = self.treesoup.group.active.string
 	def get_tree(self,root=''):
-		if len(root) > 0:
+		if len(str(root)) > 0:
 			tree_url = "{base}table.xml?content=sensortree&output=xml&id={rootid}&{auth}".format(base=self.base_url,rootid=root,auth=self.url_auth)
 		else:
 			tree_url = "{base}table.xml?content=sensortree&output=xml&{auth}".format(base=self.base_url,auth=self.url_auth)
@@ -82,33 +79,35 @@ class prtg_api(baseconfig):
 		self.treesoup = self.get_tree()
 		probeids = []
 		newprobeids = []
-		for probe in self.allprobes:
-			probeids.append(probe.id)
+		for aprobe in self.allprobes:
+			probeids.append(aprobe.id)
 		for child in self.treesoup.find_all("probenode"):
 			if child.find("id").string in probeids:
-				for probe in self.allprobes:
-					if probe.id == child.find("id").string:
-						probe.refresh()
+				for aprobe in self.allprobes:
+					if aprobe.id == child.find("id").string:
+						aprobe.refresh()
 			else:
 				probeobj = probe(child)
 				self.allprobes.append(probeobj)
 			newprobeids.append(child.find("id").string)
 		for id in probeids:
 			if id not in newprobeids:
-				for probe in self.allprobes:
-					if probe.id == id:
-						self.allprobes.remove(probe)
+				for aprobe in self.allprobes:
+					if aprobe.id == id:
+						self.allprobes.remove(aprobe)
 	def delete(self,confirm=True):
 		if self.id == "0":
 			return("You cannot delete the root object.")
 		else:
-			delete_url = "{base}deleteobject.htm?id={objid}&approve=1{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
+			delete_url = "{base}deleteobject.htm?id={objid}&approve=1&{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
 			if confirm:
 				response = str(input("Would you like to continue?(Y/[N])  "))
 				while response.upper() not in ["Y","N"]:
 					response = str(input("Would you like to continue?(Y/[N])  "))
 				if response.upper() == "Y":
 					req = requests.get(delete_url,verify=False)
+			else:
+				req = requests.get(delete_url,verify=False)
 				
 class channel(prtg_api):
 	def __init__(self,channelsoup,sensorid):
@@ -189,14 +188,14 @@ class device(prtg_api):
 			devicesoup = soup.sensortree.nodes.device
 		sensorids = []
 		newsensorids = []
-		for sensor in self.sensors:
-			sensorids.append(sensor.id)
+		for asensor in self.sensors:
+			sensorids.append(asensor.id)
 		for child in devicesoup.children:
 			if child.name == "sensor":
 				if child.find("id").string in sensorids:
-					for sensor in self.sensors:
-						if sensor.id == child.find("id").string:
-							sensor.refresh(child)
+					for asensor in self.sensors:
+						if asensor.id == child.find("id").string:
+							asensor.refresh(child)
 				else:
 					sensorobj = sensor(child)
 					self.sensors.append(sensorobj)
@@ -208,9 +207,9 @@ class device(prtg_api):
 				setattr(self,child.name,child.string)
 		for id in sensorids:
 			if id not in newsensorids:
-				for sensor in self.sensors:
-					if sensor.id == id:
-						sensortoremove = sensor
+				for asensor in self.sensors:
+					if asensor.id == id:
+						sensortoremove = asensor
 				self.sensors.remove(sensortoremove)
 				self.allsensors.remove(sensortoremove)
 		setattr(self,"attributes",devicesoup.attrs)
@@ -240,22 +239,18 @@ class group(prtg_api):
 			groupsoup = soup.sensortree.nodes.group
 		deviceids = []
 		newdeviceids = []
-		for device in self.devices:
-			deviceids.append(device.id)
+		for adevice in self.devices:
+			deviceids.append(adevice.id)
 		groupids = []
 		newgroupids = []
-		for group in self.groups:
-			groupids.append(group.id)
-		for device in self.devices:
-			deviceids.append(device.id)
-		for group in self.groups:
-			groupids.append(group.id)
+		for agroup in self.groups:
+			groupids.append(agroup.id)
 		for child in groupsoup.children:
 			if child.name == "device":
 				if child.find("id").string in deviceids:
-					for device in self.devices:
-						if device.id == child.find("id").string:
-							device.refresh(child)
+					for adevice in self.devices:
+						if adevice.id == child.find("id").string:
+							adevice.refresh(child)
 				else:
 					deviceobj = device(child)
 					self.devices.append(deviceobj)
@@ -263,9 +258,9 @@ class group(prtg_api):
 				newdeviceids.append(child.find("id"))
 			elif child.name == "group":
 				if child.find("id").string in groupids:
-					for group in self.groups:
-						if group.id == child.find("id").string:
-							group.refresh(child)
+					for agroup in self.groups:
+						if agroup.id == child.find("id").string:
+							agroup.refresh(child)
 				else:
 					groupobj = group(child)
 					self.groups.append(groupobj)
@@ -277,16 +272,16 @@ class group(prtg_api):
 				setattr(self,child.name,child.string)
 		for id in deviceids:
 			if id not in newdeviceids:
-				for device in self.devices:
-					if device.id == id:
-						devicetoremove = device
+				for adevice in self.devices:
+					if adevice.id == id:
+						devicetoremove = adevice
 				self.devices.remove(devicetoremove)
 				self.alldevices.remove(devicetoremove)
 		for id in groupids:
 			if id not in newgroupids:
-				for group in self.groups:
-					if group.id == id:
-						grouptoremove = group
+				for agroup in self.groups:
+					if agroup.id == id:
+						grouptoremove = agroup
 				self.groups.remove(grouptoremove)
 				self.allgroups.remove(grouptoremove)
 		setattr(self,"attributes",groupsoup.attrs)
