@@ -74,7 +74,7 @@ class prtg_api(baseconfig):
 		newprobeids = []
 		for probe in self.allprobes:
 			probeids.append(probe.id)
-		for child in self.treesoup.findall("probenode"):
+		for child in self.treesoup.find_all("probenode"):
 			if child.find("id").string in probeids:
 				for probe in self.allprobes:
 					if probe.id == child.find("id").string:
