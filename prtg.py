@@ -35,6 +35,11 @@ class prtg_api(baseconfig):
 		self.id = "0"
 		self.status_raw = self.treesoup.group.status_raw.string
 		self.active = self.treesoup.group.active.string
+		self.type = "Root"
+	def __str__(self):
+		return(self.id)
+	def __repr__(self):
+		return(self.id)
 	def get_tree(self,root=''):
 		if len(str(root)) > 0:
 			tree_url = "{base}table.xml?content=sensortree&output=xml&id={rootid}&{auth}".format(base=self.base_url,rootid=root,auth=self.url_auth)
@@ -54,7 +59,7 @@ class prtg_api(baseconfig):
 		if "OK" in req.text:
 			self.name = newname
 		else:
-			print("Unexpected response: {response}".format(response=req.text))
+			return("Unexpected response: {response}".format(response=req.text))
 	def pause(self,duration=0,message=""):
 		if duration > 0:
 			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.id,time=duration,auth=self.url_auth)
@@ -96,7 +101,7 @@ class prtg_api(baseconfig):
 					if aprobe.id == id:
 						self.allprobes.remove(aprobe)
 	def delete(self,confirm=True):
-		if self.id == "0":
+		if self.type == "Root":
 			return("You cannot delete the root object.")
 		else:
 			delete_url = "{base}deleteobject.htm?id={objid}&approve=1&{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
@@ -108,6 +113,14 @@ class prtg_api(baseconfig):
 					req = requests.get(delete_url,verify=False)
 			else:
 				req = requests.get(delete_url,verify=False)
+	def set_property(self,name,value):
+		if self.type != "Channel":
+			setprop_url = "{base}setobjectproperty.htm?id={objid}&name={propname}&value={propval}&{auth}".format(base=self.base_url,objid=self.id,propname=name,propval=value,auth=self.url_auth)
+		else:
+			setprop_url = "{base}setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}&{auth}".format(base=self.base_url,objid=self.sensorid,subid=self.objid,propname=name,propval=value,auth=self.url_auth)
+		req = requests.get(setprop_url,verify=False)
+		if req.status_code == 404:
+			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
 				
 class channel(prtg_api):
 	def __init__(self,channelsoup,sensorid):
@@ -118,15 +131,13 @@ class channel(prtg_api):
 				child.string = ""
 			if child.name is not None:
 				setattr(self,child.name,child.string)
+		self.id = self.objid
+		self.type = "Channel"
 	def rename(self,newname):
-		rename_url = "{base}setobjectproperty.htm?id={sensorid}&subid={channelid}&subtype=channel&name=name&value={name}&{auth}".format(base=self.base_url,sensorid=self.sensorid,channelid=self.objid,auth=self.url_auth)
-		req = requests.get(rename_url,verify=False)
-		if "OK" in req.text:
-			self.name = newname
-		else:
-			print("Unexpected response: {response}".format(response=req.text))
+		self.set_property(name="name",value=newname)
+		self.name = newname
 	def pause(self,duration=0,message=""):
-		print("Channels cannot be paused, pausing parent sensor.")
+		return("Channels cannot be paused, pausing parent sensor.")
 		if duration > 0:
 			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.sensorid,time=duration,auth=self.url_auth)
 		else:
@@ -135,9 +146,18 @@ class channel(prtg_api):
 			pause_url += "&pausemsg={string}".format(string=message)
 		req = requests.get(pause_url,verify=False)
 	def resume(self):
-		print("Channels cannot be resumed, resuming parent sensor.")
+		return("Channels cannot be resumed, resuming parent sensor.")
 		resume_url = "{base}pause.htm?id={objid}&action=1&{auth}".format(base=self.base_url,objid=self.sensorid,auth=self.url_auth)
 		req = requests.get(resume_url,verify=False)
+	def refresh(self,channelsoup):
+		for child in channelsoup.children:
+			if child.string is None:
+				child.string = ""
+			if child.name is not None:
+				setattr(self,child.name,child.string)
+		self.id = self.objid
+	def delete(self):
+		return("You cannot delete a channel")
 
 class sensor(prtg_api):
 	def __init__(self,sensorsoup):
@@ -149,12 +169,19 @@ class sensor(prtg_api):
 				setattr(self,child.name,child.string)
 		setattr(self,"attributes",sensorsoup.attrs)
 		self.channels = []
+		self.type = "Sensor"
 	def get_channels(self):
 		channel_url = "{base}table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}&{auth}".format(base=self.base_url,sensorid=self.id,auth=self.url_auth)
 		req = requests.get(channel_url,verify=False)
 		channelsoup = BeautifulSoup(req.text,"lxml")
-		for child in channelsoup.find_all("item"):
-			self.channels.append(channel(child,self.id))
+		if len(self.channels) == 0:
+			for child in channelsoup.find_all("item"):
+				self.channels.append(channel(child,self.id))
+		else:
+			for child in channelsoup.find_all("item"):
+				for achannel in self.channels:
+					if achannel.objid == child.find("objid").string:
+						achannel.refresh(child)
 	def refresh(self,sensorsoup=None):
 		if sensorsoup is None:
 			soup = self.get_tree(root=self.id)
@@ -182,6 +209,7 @@ class device(prtg_api):
 					child.string = ""
 				setattr(self,child.name,child.string)
 		setattr(self,"attributes",devicesoup.attrs)
+		self.type = "Device"
 	def refresh(self,devicesoup=None):
 		if devicesoup is None:
 			soup = self.get_tree(root=self.id)
@@ -233,6 +261,7 @@ class group(prtg_api):
 					child.string = ""
 				setattr(self,child.name,child.string)
 		setattr(self,"attributes",groupsoup.attrs)
+		self.type = "Group"
 	def refresh(self,groupsoup=None):
 		if groupsoup is None:
 			soup = self.get_tree(root=self.id)
@@ -288,7 +317,9 @@ class group(prtg_api):
 			
 				
 class probe(group):		
-	pass
+	def __init__(self,groupsoup):
+		group.__init__(self,groupsoup)
+		self.type = "Probe"
 			
 class AuthenticationError(Exception):
 	pass
