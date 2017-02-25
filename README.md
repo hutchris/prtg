@@ -50,13 +50,14 @@ Current methods on all objects include:
 - clone
 - delete
 - refresh
+- set_property
 
 To come:
-- set property
 - move
-- get passhash
 
 If you are making small changes such as pause, resume, rename; the local data will update as you go. If you are doing larger changes you should refresh the data after each change. If you refresh the main prtg object it will refresh everything otherwise you can just refresh an object further down the tree to only refresh part of the local data. To refresh an object call the .refresh() method.
+
+The set_property method is very powerful and flexible. You can change anything for an object that you can change in the objects settings tab in the web ui. I will add the more commonly used settings as seperate methods.
 
 There are delays with some actions such as resuming so you should add time delays where appropriate.
 
