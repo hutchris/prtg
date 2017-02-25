@@ -43,14 +43,21 @@ channel = sensorobject.channels[0]
 ```
 
 
-Current methods on all objects include:
+Current methods and parameters (* = required) on all objects include:
 - rename
 - pause (pause and resume on a channel will change the parent sensor)
+ - duration=0
+ - message=''
 - resume
 - clone
-- delete
+ - newname=''*
+ - newplaceid=''*
+- delete (you can't delete the root object or channels)
+ - confirm=True
 - refresh
 - set_property
+ - name*
+ - value*
 
 To come:
 - move
