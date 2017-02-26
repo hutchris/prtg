@@ -160,7 +160,7 @@ class channel(prtg_api):
 		return("You cannot delete a channel")
 
 class sensor(prtg_api):
-	def __init__(self,sensorsoup):
+	def __init__(self,sensorsoup,deviceid):
 		baseconfig.__init__(self)
 		for child in sensorsoup.children:
 			if child.string is None:
@@ -170,6 +170,7 @@ class sensor(prtg_api):
 		setattr(self,"attributes",sensorsoup.attrs)
 		self.channels = []
 		self.type = "Sensor"
+		self.deviceid = deviceid
 	def get_channels(self):
 		channel_url = "{base}table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}&{auth}".format(base=self.base_url,sensorid=self.id,auth=self.url_auth)
 		req = requests.get(channel_url,verify=False)
@@ -201,7 +202,7 @@ class device(prtg_api):
 		self.sensors = []
 		for child in devicesoup.children:
 			if child.name == "sensor":
-				sensorobj = sensor(child)
+				sensorobj = sensor(child,self.id)
 				self.sensors.append(sensorobj)
 				self.allsensors.append(sensorobj)
 			elif child.name is not None:
@@ -225,7 +226,7 @@ class device(prtg_api):
 						if asensor.id == child.find("id").string:
 							asensor.refresh(child)
 				else:
-					sensorobj = sensor(child)
+					sensorobj = sensor(child,self.id)
 					self.sensors.append(sensorobj)
 					self.allsensors.append(sensorobj)
 				newsensorids.append(child.find("id").string)
