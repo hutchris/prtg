@@ -62,7 +62,7 @@ class prtg_api(baseconfig):
 			return("Unexpected response: {response}".format(response=req.text))
 	def pause(self,duration=0,message=""):
 		if duration > 0:
-			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.id,time=duration,auth=self.url_auth)
+			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.id,time=str(duration),auth=self.url_auth)
 		else:
 			pause_url = "{base}pause.htm?id={objid}&action=0&{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
 		if message:
