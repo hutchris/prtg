@@ -62,7 +62,7 @@ class prtg_api(baseconfig):
 			return("Unexpected response: {response}".format(response=req.text))
 	def pause(self,duration=0,message=""):
 		if duration > 0:
-			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.id,time=str(duration),auth=self.url_auth)
+			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.id,time=duration,auth=self.url_auth)
 		else:
 			pause_url = "{base}pause.htm?id={objid}&action=0&{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
 		if message:
@@ -137,7 +137,7 @@ class channel(prtg_api):
 		self.set_property(name="name",value=newname)
 		self.name = newname
 	def pause(self,duration=0,message=""):
-		return("Channels cannot be paused, pausing parent sensor.")
+		print("Channels cannot be paused, pausing parent sensor.")
 		if duration > 0:
 			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.sensorid,time=duration,auth=self.url_auth)
 		else:
@@ -146,7 +146,7 @@ class channel(prtg_api):
 			pause_url += "&pausemsg={string}".format(string=message)
 		req = requests.get(pause_url,verify=False)
 	def resume(self):
-		return("Channels cannot be resumed, resuming parent sensor.")
+		print("Channels cannot be resumed, resuming parent sensor.")
 		resume_url = "{base}pause.htm?id={objid}&action=1&{auth}".format(base=self.base_url,objid=self.sensorid,auth=self.url_auth)
 		req = requests.get(resume_url,verify=False)
 	def refresh(self,channelsoup):
@@ -284,7 +284,7 @@ class group(prtg_api):
 					deviceobj = device(child)
 					self.devices.append(deviceobj)
 					self.alldevices.append(deviceobj)
-				newdeviceids.append(child.find("id"))
+				newdeviceids.append(child.find("id").string)
 			elif child.name == "group":
 				if child.find("id").string in groupids:
 					for agroup in self.groups:
@@ -294,7 +294,7 @@ class group(prtg_api):
 					groupobj = group(child)
 					self.groups.append(groupobj)
 					self.allgroups.append(groupobj)
-				newgroupids.append(child.find("id"))
+				newgroupids.append(child.find("id").string)
 			elif child.name is not None:
 				if child.string is None:
 					child.string = ""
