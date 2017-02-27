@@ -92,7 +92,7 @@ class prtg_api(baseconfig):
 			if child.find("id").string in probeids:
 				for aprobe in self.allprobes:
 					if aprobe.id == child.find("id").string:
-						aprobe.refresh()
+						aprobe.refresh(child)
 			else:
 				probeobj = probe(child)
 				self.allprobes.append(probeobj)
@@ -265,8 +265,12 @@ class group(prtg_api):
 		self.type = "Group"
 	def refresh(self,groupsoup=None):
 		if groupsoup is None:
-			soup = self.get_tree(root=self.id)
-			groupsoup = soup.sensortree.nodes.group
+			if self.type == "Group":
+				soup = self.get_tree(root=self.id)
+				groupsoup = soup.sensortree.nodes.group
+			elif self.type == "Probe":
+				soup = self.get_tree(root=self.id)
+				groupsoup = soup.sensortree.nodes.probenode
 		deviceids = []
 		newdeviceids = []
 		for adevice in self.devices:
@@ -318,9 +322,7 @@ class group(prtg_api):
 			
 				
 class probe(group):		
-	def __init__(self,groupsoup):
-		group.__init__(self,groupsoup)
-		self.type = "Probe"
+	type = "Probe"
 			
 class AuthenticationError(Exception):
 	pass
