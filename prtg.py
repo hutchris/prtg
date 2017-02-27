@@ -42,44 +42,46 @@ class prtg_api(baseconfig):
 		return(self.id)
 	def get_tree(self,root=''):
 		if len(str(root)) > 0:
-			tree_url = "{base}table.xml?content=sensortree&output=xml&id={rootid}&{auth}".format(base=self.base_url,rootid=root,auth=self.url_auth)
+			tree_url = "table.xml?content=sensortree&output=xml&id={rootid}".format(rootid=root)
 		else:
-			tree_url = "{base}table.xml?content=sensortree&output=xml&{auth}".format(base=self.base_url,auth=self.url_auth)
-		req = requests.get(tree_url,verify=False)
-		if req.status_code == 401:
-			raise(AuthenticationError("PRTG authentication failed. Check credentials in config file"))
-		elif req.status_code == 404:
-			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
+			tree_url = "table.xml?content=sensortree&output=xml"
+		req = self.get_request(url_string=tree_url)
 		raw_data = req.text
 		treesoup = BeautifulSoup(raw_data,"lxml")
 		return(treesoup)
+	def get_request(self,url_string):
+		url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
+		req = requests.get(url,verify=False)
+		if req.status_code == 200:
+			return(req)
+		elif req.status_code == 401:
+			raise(AuthenticationError("PRTG authentication failed. Check credentials in config file"))
+		elif req.status_code == 404:
+			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
 	def rename(self,newname):
-		rename_url = "{base}rename.htm?id={objid}&value={name}&{auth}".format(base=self.base_url,auth=self.url_auth,objid=self.id,name=newname)
-		req = requests.get(rename_url,verify=False)
-		if "OK" in req.text:
-			self.name = newname
-		else:
-			return("Unexpected response: {response}".format(response=req.text))
+		rename_url = "rename.htm?id={objid}&value={name}".format(objid=self.id,name=newname)
+		req = self.get_request(url_string=rename_url)
+		self.name = newname
 	def pause(self,duration=0,message=""):
 		if duration > 0:
-			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.id,time=duration,auth=self.url_auth)
+			pause_url = "pauseobjectfor.htm?id={objid}&duration={time}".format(objid=self.id,time=str(duration))
 		else:
-			pause_url = "{base}pause.htm?id={objid}&action=0&{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
+			pause_url = "pause.htm?id={objid}&action=0".format(objid=self.id)
 		if message:
 			pause_url += "&pausemsg={string}".format(string=message)
-		req = requests.get(pause_url,verify=False)
+		req = self.get_request(url_string=pause_url)
 		self.status = "Paused"
 		self.active = "false"
 		self.status_raw = "7"
 	def resume(self):
-		resume_url = "{base}pause.htm?id={objid}&action=1&{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
-		req = requests.get(resume_url,verify=False)
+		resume_url = "pause.htm?id={objid}&action=1".format(objid=self.id)
+		req = self.get_request(url_string=resume_url)
 		self.status = "?"
 		self.active = "true"
 		self.status_raw = "?"
 	def clone(self,newname,newplaceid):
-		clone_url = "{base}duplicateobject.htm?id={objid}&name={name}&targetid={newparent}&{auth}".format(base=self.base_url,objid=self.id,name=newname,newparent=newplaceid,auth=self.url_auth)
-		req = requests.get(clone_url,verify=False)
+		clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
+		req = self.get_request(url_string=clone_url)
 	def refresh(self):
 		self.treesoup = self.get_tree()
 		probeids = []
@@ -90,7 +92,7 @@ class prtg_api(baseconfig):
 			if child.find("id").string in probeids:
 				for aprobe in self.allprobes:
 					if aprobe.id == child.find("id").string:
-						aprobe.refresh()
+						aprobe.refresh(child)
 			else:
 				probeobj = probe(child)
 				self.allprobes.append(probeobj)
@@ -104,23 +106,21 @@ class prtg_api(baseconfig):
 		if self.type == "Root":
 			return("You cannot delete the root object.")
 		else:
-			delete_url = "{base}deleteobject.htm?id={objid}&approve=1&{auth}".format(base=self.base_url,objid=self.id,auth=self.url_auth)
+			delete_url = "deleteobject.htm?id={objid}&approve=1}".format(objid=self.id)
 			if confirm:
 				response = str(input("Would you like to continue?(Y/[N])  "))
 				while response.upper() not in ["Y","N"]:
 					response = str(input("Would you like to continue?(Y/[N])  "))
 				if response.upper() == "Y":
-					req = requests.get(delete_url,verify=False)
+					req = self.get_request(url_string=delete_url)
 			else:
-				req = requests.get(delete_url,verify=False)
+				req = self.get_request(url_string=delete_url)
 	def set_property(self,name,value):
 		if self.type != "Channel":
-			setprop_url = "{base}setobjectproperty.htm?id={objid}&name={propname}&value={propval}&{auth}".format(base=self.base_url,objid=self.id,propname=name,propval=value,auth=self.url_auth)
+			setprop_url = "setobjectproperty.htm?id={objid}&name={propname}&value={propval}".format(objid=self.id,propname=name,propval=value)
 		else:
-			setprop_url = "{base}setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}&{auth}".format(base=self.base_url,objid=self.sensorid,subid=self.objid,propname=name,propval=value,auth=self.url_auth)
-		req = requests.get(setprop_url,verify=False)
-		if req.status_code == 404:
-			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
+			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
+		req = self.get_request(url_string=setprop_url)
 				
 class channel(prtg_api):
 	def __init__(self,channelsoup,sensorid):
@@ -139,16 +139,16 @@ class channel(prtg_api):
 	def pause(self,duration=0,message=""):
 		print("Channels cannot be paused, pausing parent sensor.")
 		if duration > 0:
-			pause_url = "{base}pauseobjectfor.htm?id={objid}&duration={time}&{auth}".format(base=self.base_url,objid=self.sensorid,time=duration,auth=self.url_auth)
+			pause_url = "pauseobjectfor.htm?id={objid}&duration={time}".format(objid=self.sensorid,time=duration)
 		else:
-			pause_url = "{base}pause.htm?id={objid}&action=0&{auth}".format(base=self.base_url,objid=self.sensorid,auth=self.url_auth)
+			pause_url = "pause.htm?id={objid}&action=0&".format(objid=self.sensorid)
 		if message:
 			pause_url += "&pausemsg={string}".format(string=message)
-		req = requests.get(pause_url,verify=False)
+		req = self.get_request(url_string=pause_url)
 	def resume(self):
 		print("Channels cannot be resumed, resuming parent sensor.")
-		resume_url = "{base}pause.htm?id={objid}&action=1&{auth}".format(base=self.base_url,objid=self.sensorid,auth=self.url_auth)
-		req = requests.get(resume_url,verify=False)
+		resume_url = "pause.htm?id={objid}&action=1".format(objid=self.sensorid)
+		req = self.get_request(url_string=resume_url)
 	def refresh(self,channelsoup):
 		for child in channelsoup.children:
 			if child.string is None:
@@ -172,8 +172,8 @@ class sensor(prtg_api):
 		self.type = "Sensor"
 		self.deviceid = deviceid
 	def get_channels(self):
-		channel_url = "{base}table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}&{auth}".format(base=self.base_url,sensorid=self.id,auth=self.url_auth)
-		req = requests.get(channel_url,verify=False)
+		channel_url = "table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}".format(sensorid=self.id)
+		req = self.get_request(url_string=channel_url)
 		channelsoup = BeautifulSoup(req.text,"lxml")
 		if len(self.channels) == 0:
 			for child in channelsoup.find_all("item"):
@@ -265,8 +265,12 @@ class group(prtg_api):
 		self.type = "Group"
 	def refresh(self,groupsoup=None):
 		if groupsoup is None:
-			soup = self.get_tree(root=self.id)
-			groupsoup = soup.sensortree.nodes.group
+			if self.type == "Group":
+				soup = self.get_tree(root=self.id)
+				groupsoup = soup.sensortree.nodes.group
+			elif self.type == "Probe":
+				soup = self.get_tree(root=self.id)
+				groupsoup = soup.sensortree.nodes.probenode
 		deviceids = []
 		newdeviceids = []
 		for adevice in self.devices:
@@ -318,9 +322,7 @@ class group(prtg_api):
 			
 				
 class probe(group):		
-	def __init__(self,groupsoup):
-		group.__init__(self,groupsoup)
-		self.type = "Probe"
+	type = "Probe"
 			
 class AuthenticationError(Exception):
 	pass
