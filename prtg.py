@@ -16,8 +16,7 @@ class baseconfig(object):
 		self.prtg_host = cfg['prtg_host']
 		self.prtg_user = cfg['prtg_user']
 		self.prtg_hash = cfg['prtg_hash']
-		self.port = ":{0}".format(self.port)
-		self.base_url = "{protocol}://{host}{port}/api/".format(protocol=self.protocol,host=self.prtg_host,port=self.port)
+		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.prtg_host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.prtg_user,passhash=self.prtg_hash)
 	allprobes = []
 	allgroups = []
