@@ -11,7 +11,7 @@ Tested only on Python 3.5.2 so far.
 
 This is a Python module to facilitate in managing PRTG servers from CLI or for automating changes.
 
-The first thing you should do is edit the config.yml file and add your username and passhash. You can find this in the settings page for your user account. There is also an API call you can make which returns it. 
+The first thing you should do is edit the config.yml file and add your username and passhash. You can also run the library without modifying the config file to get into the interactive initial setup mode. This allows you to enter your PRTG server details. You only need your password for this not your passhash.
 
 Upon initialisation the entire device tree is downloaded and each probe, group, device, sensor and channel is provided as a modifiable object. From the main object (called prtg in example) you can access all objects in the tree using the prtg.allprobes, prtg.allgroups, prtg.alldevices and prtg.allsensors attributes. The channels are not available by default, you must run sensor.get_channels() to the get the child channels of that sensor.
 
@@ -58,6 +58,7 @@ Current methods and parameters (* = required) on all objects include:
 - set_property
  - name*
  - value*
+- get_passhash
 
 To come:
 - move
