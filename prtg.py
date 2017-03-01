@@ -87,19 +87,31 @@ class baseconfig(object):
 		passhash_url = "{base}getpasshash.htm?username={username}&password={password}".format(base=self.base_url,username=self.prtg_user,password=prtg_password)
 		req = requests.get(passhash_url,verify=False)
 		return(req.text)
-	#define global arrays
+	#define global arrays, inherited to all objects
 	allprobes = []
 	allgroups = []
 	alldevices = []
 	allsensors = []
 		
 class prtg_api(baseconfig):
+	'''This is the main class for the prtg.py project. When you initiate this class it downloads all the objects in the prtg sensortree and creates
+	a python object for each one.
+
+	To initiate:
+	prtg = prtg_api()
+	
+	If you haven't modified the config.yml file you can run:
+	prtg = prtg_api(initial_setup=True)
+	To get into initial setup mode.
+	'''
 	def __init__(self,initial_setup=False):
 		if initial_setup:
 			self.get_config(self,initial_setup=True)
 		else:
 			self.get_config()
+		#get full sensortree	
 		self.treesoup = self.get_tree()
+		#Find all the probes in sensortree and create a probe object, passes each probe its xml data
 		for child in self.treesoup.find_all("probenode"):
 			probeobj = probe(child)
 			self.allprobes.append(probeobj)
@@ -122,6 +134,7 @@ class prtg_api(baseconfig):
 		req = self.get_request(url_string=tree_url)
 		raw_data = req.text
 		treesoup = BeautifulSoup(raw_data,"lxml")
+		#returns the xml as a beautifulsoup object
 		return(treesoup)
 	def get_request(self,url_string):
 		#global method for api calls. Provides errors for the 401 and 404 responses
@@ -159,11 +172,14 @@ class prtg_api(baseconfig):
 		clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
 		req = self.get_request(url_string=clone_url)
 	def refresh(self):
+		#download fresh sensortree
 		self.treesoup = self.get_tree()
 		probeids = []
 		newprobeids = []
+		#get ids of existing probes
 		for aprobe in self.allprobes:
 			probeids.append(aprobe.id)
+		#for all the probes in sensortree, if it already exists refresh the object, otherwise create a new one	
 		for child in self.treesoup.find_all("probenode"):
 			if child.find("id").string in probeids:
 				for aprobe in self.allprobes:
@@ -172,7 +188,9 @@ class prtg_api(baseconfig):
 			else:
 				probeobj = probe(child)
 				self.allprobes.append(probeobj)
+			#add all probe ids from the sensortree to this list
 			newprobeids.append(child.find("id").string)
+		#if existing probes were not in the new sensortree, remove from allprobes
 		for id in probeids:
 			if id not in newprobeids:
 				for aprobe in self.allprobes:
@@ -326,6 +344,9 @@ class group(prtg_api):
 		self.get_config()
 		self.groups = []
 		self.devices = []
+		#groupsoup is passed into __init__ method
+		#The children objects are either added to this object as an attribute
+		#or a device/group object is created
 		for child in groupsoup.children:
 			if child.name == "device":
 				deviceobj = device(child)
