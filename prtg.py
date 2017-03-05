@@ -217,6 +217,10 @@ class prtg_api(baseconfig):
 		else:
 			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
 		req = self.get_request(url_string=setprop_url)
+	def set_interval(self,interval):
+	'''note: you will still need to disable inheritance manually.
+	Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
+		self.set_property(name="interval",value=interval)
 				
 class channel(prtg_api):
 	def __init__(self,channelsoup,sensorid):
@@ -291,6 +295,8 @@ class sensor(prtg_api):
 		setattr(self,"attributes",sensorsoup.attrs)
 		if len(self.channels) > 0:
 			self.get_channels()
+	def set_additional_param(self,parameterstring):
+		self.set_property(name="params",value=parameterstring)
 
 class device(prtg_api):
 	def __init__(self,devicesoup):
@@ -338,6 +344,9 @@ class device(prtg_api):
 				self.sensors.remove(sensortoremove)
 				self.allsensors.remove(sensortoremove)
 		setattr(self,"attributes",devicesoup.attrs)
+	def set_host(self,host):
+		self.set_property(name="host",value=host)
+		self.host = host
 
 class group(prtg_api):
 	def __init__(self,groupsoup):
