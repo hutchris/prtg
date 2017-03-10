@@ -218,8 +218,8 @@ class prtg_api(baseconfig):
 			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
 		req = self.get_request(url_string=setprop_url)
 	def set_interval(self,interval):
-	'''note: you will still need to disable inheritance manually.
-	Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
+		'''note: you will still need to disable inheritance manually.
+		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
 		self.set_property(name="interval",value=interval)
 				
 class channel(prtg_api):

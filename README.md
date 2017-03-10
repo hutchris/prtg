@@ -30,8 +30,8 @@ from prtg import prtg_api
 prtg = prtg_api()
 
 probeobject = prtg.allprobes[0]
-groups = probobject.groups
-devices = probobject.devices
+groups = probeobject.groups
+devices = probeobject.devices
 
 deviceobject = devices[0]
 sensors = deviceobject.sensors
@@ -59,6 +59,12 @@ Current methods and parameters (* = required) on all objects include:
  - name*
  - value*
 - get_passhash
+- set_additional_param (for custom script sensors)
+ - param*
+- set_interval
+ - interval*
+- set_host (ip address or hostname)
+ - host*
 
 To come:
 - move
