@@ -72,7 +72,8 @@ Current methods and parameters (* = required) on all objects include:
  - interval*
 - set_host (ip address or hostname)
  - host*
-
+- search_byid
+ - id
 To come:
 - move
 
