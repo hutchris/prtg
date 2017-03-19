@@ -13,7 +13,7 @@ This is a Python module to facilitate in managing PRTG servers from CLI or for a
 The prtg_api no longer uses a config file. Instead you need to enter your PRTG parameters when initiating the prtg_api class. This change was to allow this to be used in a more flexible way, or to manage multiple PRTG instances, you can still set up a local config file for your parameters if you wish. The positional parameters for initiating the prtg_api class are:
 
 ```
-prtg_api(prtg_host,port,prtg_user,prtg_hash,protocol,rootid=0)
+prtg_api(host,port,user,passhash,protocol,rootid=0)
 ```
 
 Upon initialisation the entire device tree is downloaded and each probe, group, device, sensor and channel is provided as a modifiable object. From the main object (called prtg in example) you can access all objects in the tree using the prtg.allprobes, prtg.allgroups, prtg.alldevices and prtg.allsensors attributes. The channels are not available by default, you must run sensor.get_channels() to the get the child channels of that sensor.
