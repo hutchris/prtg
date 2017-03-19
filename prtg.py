@@ -6,17 +6,17 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class baseconfig(object):
-	def set_config(self,prtg_host,port,prtg_user,prtg_hash,protocol):
-		self.confdata = (prtg_host,port,prtg_user,prtg_hash,protocol)
+	def set_config(self,host,port,user,passhash,protocol):
+		self.confdata = (host,port,user,passhash,protocol)
 	def unpack_config(self,confdata):
-		self.prtg_host = confdata[0]
+		self.host = confdata[0]
 		self.port = confdata[1]
-		self.prtg_user = confdata[2]
-		self.prtg_hash = confdata[3]
+		self.user = confdata[2]
+		self.passhash = confdata[3]
 		self.protocol = confdata[4]
 		self.confdata = confdata
-		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.prtg_host,port=self.port)
-		self.url_auth = "username={username}&passhash={passhash}".format(username=self.prtg_user,passhash=self.prtg_hash)
+		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
+		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
 	#define global arrays, inherited to all objects
 	allprobes = []
 	allgroups = []
@@ -24,8 +24,8 @@ class baseconfig(object):
 	allsensors = []
 		
 class prtg_api(baseconfig):
-	def __init__(self,prtg_host,port,prtg_user,prtg_hash,protocol,rootid=0):
-		self.set_config(prtg_host,port,prtg_user,prtg_hash,protocol)
+	def __init__(self,host,port,user,passhash,protocol,rootid=0):
+		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
 		self.groups = []
 		self.devices = []
