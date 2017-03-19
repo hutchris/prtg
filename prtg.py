@@ -27,6 +27,7 @@ class prtg_api(baseconfig):
 	def __init__(self,host,port,user,passhash,protocol,rootid=0):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
+		self.probes = []
 		self.groups = []
 		self.devices = []
 		#get sensortree from root id downwards
@@ -38,6 +39,7 @@ class prtg_api(baseconfig):
 					if childr.name == "probenode":
 						probeobj = probe(childr,self.confdata)
 						self.allprobes.append(probeobj)
+						self.probes.append(probeobj)
 					elif childr.name == "device":
 						deviceobj = device(childr,self.confdata)
 						self.devices.append(deviceobj)
