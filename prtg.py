@@ -24,6 +24,24 @@ class baseconfig(object):
 	allsensors = []
 		
 class prtg_api(baseconfig):
+	'''
+	Parameters:
+	- host: Enter the ip address or hostname where PRTG is running
+	- port: Enter the tcp port used to connect to prtg. (usually 80 or 443)
+	- user: Enter your PRTG username
+	- passhash: Enter your PRTG passhash. Can be found in PRTG webgui > settings > account settings
+	- protocol: Enter the protocol used to connect to PRTG server (http or https)
+	- rootid: Enter the id of the group/probe that contains all the objects you want to manage. Defaults to 0 (gets entire sensortree)
+	
+	Example:
+	host = '192.168.1.1'
+	port = '443'
+	user = 'prtgadmin'
+	passhash = '0000000'
+	protocol = 'https'
+	rootid = '53'
+	prtg = prtg_api(host,port,user,passhash,protocol,rootid)
+	'''
 	def __init__(self,host,port,user,passhash,protocol,rootid=0):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
@@ -150,6 +168,11 @@ class prtg_api(baseconfig):
 		'''note: you will still need to disable inheritance manually.
 		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
 		self.set_property(name="interval",value=interval)
+	def search_byid(self,id):
+		id = str(id)
+		for obj in self.allprobes + self.allgroups + self.alldevices + self.allsensors:
+			if obj.id == id:
+				return(obj)
 				
 class channel(prtg_api):
 	def __init__(self,channelsoup,sensorid,confdata):
