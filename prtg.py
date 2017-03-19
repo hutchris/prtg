@@ -1,92 +1,22 @@
 import os
-import yaml
 import requests
-import getpass
 from bs4 import BeautifulSoup
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 class baseconfig(object):
-	def get_config(self,initial_setup=False):
-		#set directory variable to the same as this prtg.py file
-		directory = os.path.dirname(os.path.abspath(__file__))
-		#open config.yml and load data into cfg variable
-		configfile = os.path.join(directory,"config.yml")
-		with open(configfile, 'r') as ymlfile:
-			cfg = yaml.load(ymlfile)
-		#assign global variables as object attributes. explicit string in case username is 123 or something
-		self.protocol = str(cfg['protocol'])
-		self.port = str(cfg['port'])
-		self.prtg_host = str(cfg['prtg_host'])
-		self.prtg_user = str(cfg['prtg_user'])
-		self.prtg_hash = str(cfg['prtg_hash'])
-		#if the passhash is left as default, config mode can be used
-		if self.prtg_hash == "000000000000" or initial_setup:
-			print("Default passhash detected.")
-			response = ""
-			while response.upper() not in ["Y","N"]:
-				response = input("Would you like to enter initial setup mode? ([Y]/N) ")
-				if response == "":
-					response = "Y"
-			if response.upper() == "Y":
-				protocol_resp = input("http or https? [{current}]".format(current=self.protocol))
-				#if the user enters an empty string, config stays as it is
-				if protocol_resp != "":
-					while protocol_resp.lower() not in ["http","https"]:
-						protocol_resp = input("http or https? ")
-					self.protocol = protocol_resp
-				prot_resp = input("Port? [{current}]".format(current=self.port))
-				if prot_resp != "":
-					tempint = -1
-					#checks whether the response is a number
-					try:
-						tempint = int(prot_resp)
-						isnumber = True
-					except:
-						isnumber = False
-					#if response is not a number or the number is not between 1 and 65535, continue to prompt
-					while isnumber is False or tempint not in range(1,65535):
-						prot_resp = input("Port? ")
-						try:
-							tempint = int(prot_resp)
-							isnumber = True
-						except:
-							isnumber = False
-					self.protocol = prot_resp
-				#hostname and username are not validated but defaults are offered
-				host_resp = input("Hostname or IP address of PRTG server? [{current}]".format(current=self.prtg_host))
-				if host_resp != "":
-					self.host = host_resp
-				user_resp = input("Username used to login to PRTG? [{current}]".format(current=self.prtg_user))
-				if user_resp != "":
-					self.prtg_user = user_resp
-				#base_url is built here in case the details have changed and passhash needs to be fetched
-				self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.prtg_host,port=self.port)
-				passhash = ""
-				while passhash.upper() not in ["Y","N"]:
-					#user can enter their password instead if they don't know passhash
-					passhash = input("Do you know your PRTG passhash? ([Y]/N)")
-					if passhash == "":
-						passhash = "Y"
-				if passhash.upper() == "Y":
-					self.prtg_hash = input("Enter your passhash: ")
-				else:
-					#get password securely and call get_passhash
-					password = getpass.getpass("Enter your PRTG password: ")
-					self.prtg_hash = self.get_passhash(prtg_password=password)
-				#dump new global variables into the config file
-				newcfg = {"protocol":self.protocol,"port":self.port,"prtg_host":self.prtg_host,"prtg_user":self.prtg_user,"prtg_hash":self.prtg_hash}
-				with open(configfile,"w") as ymlfile:
-					yaml.dump(newcfg, ymlfile, default_flow_style=False)
-		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.prtg_host,port=self.port)
-		self.url_auth = "username={username}&passhash={passhash}".format(username=self.prtg_user,passhash=self.prtg_hash)
-	def get_passhash(self,prtg_password=""):
-		if prtg_password == "":
-			prtg_password = getpass.getpass("Enter your PRTG password: ")
-		passhash_url = "{base}getpasshash.htm?username={username}&password={password}".format(base=self.base_url,username=self.prtg_user,password=prtg_password)
-		req = requests.get(passhash_url,verify=False)
-		return(req.text)
+	def set_config(self,host,port,user,passhash,protocol):
+		self.confdata = (host,port,user,passhash,protocol)
+	def unpack_config(self,confdata):
+		self.host = confdata[0]
+		self.port = confdata[1]
+		self.user = confdata[2]
+		self.passhash = confdata[3]
+		self.protocol = confdata[4]
+		self.confdata = confdata
+		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
+		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
 	#define global arrays, inherited to all objects
 	allprobes = []
 	allgroups = []
@@ -94,32 +24,34 @@ class baseconfig(object):
 	allsensors = []
 		
 class prtg_api(baseconfig):
-	'''This is the main class for the prtg.py project. When you initiate this class it downloads all the objects in the prtg sensortree and creates
-	a python object for each one.
-
-	To initiate:
-	prtg = prtg_api()
-	
-	If you haven't modified the config.yml file you can run:
-	prtg = prtg_api(initial_setup=True)
-	To get into initial setup mode.
-	'''
-	def __init__(self,initial_setup=False):
-		if initial_setup:
-			self.get_config(self,initial_setup=True)
-		else:
-			self.get_config()
-		#get full sensortree	
-		self.treesoup = self.get_tree()
-		#Find all the probes in sensortree and create a probe object, passes each probe its xml data
-		for child in self.treesoup.find_all("probenode"):
-			probeobj = probe(child)
-			self.allprobes.append(probeobj)
-		self.name = "Root"
-		self.id = "0"
-		self.status_raw = self.treesoup.group.status_raw.string
-		self.active = self.treesoup.group.active.string
-		self.type = "Root"
+	def __init__(self,host,port,user,passhash,protocol,rootid=0):
+		self.confdata = (host,port,user,passhash,protocol)
+		self.unpack_config(self.confdata)
+		self.probes = []
+		self.groups = []
+		self.devices = []
+		#get sensortree from root id downwards
+		self.treesoup = self.get_tree(root=rootid)
+		#Finds all the direct child nodes in sensortree and creates python objects, passes each object its xml data
+		for child in self.treesoup.sensortree.nodes.children:
+			if child.name is not None:
+				for childr in child.children:
+					if childr.name == "probenode":
+						probeobj = probe(childr,self.confdata)
+						self.allprobes.append(probeobj)
+						self.probes.append(probeobj)
+					elif childr.name == "device":
+						deviceobj = device(childr,self.confdata)
+						self.devices.append(deviceobj)
+						self.alldevices.append(deviceobj)
+					elif childr.name == "group":
+						groupobj = group(childr,self.confdata)
+						self.groups.append(groupobj)
+						self.allgroups.append(groupobj)
+					elif childr.name is not None:
+						if childr.string is None:
+							childr.string = ""
+						setattr(self,childr.name,childr.string)
 	#str and repr allow the object id to show when viewing in arrays or printing
 	def __str__(self):
 		return(self.id)
@@ -127,10 +59,7 @@ class prtg_api(baseconfig):
 		return(self.id)
 	def get_tree(self,root=''):
 		#gets sensortree from prtg. If no rootid is provided returns entire tree
-		if len(str(root)) > 0:
-			tree_url = "table.xml?content=sensortree&output=xml&id={rootid}".format(rootid=root)
-		else:
-			tree_url = "table.xml?content=sensortree&output=xml"
+		tree_url = "table.xml?content=sensortree&output=xml&id={rootid}".format(rootid=root)
 		req = self.get_request(url_string=tree_url)
 		raw_data = req.text
 		treesoup = BeautifulSoup(raw_data,"lxml")
@@ -186,7 +115,7 @@ class prtg_api(baseconfig):
 					if aprobe.id == child.find("id").string:
 						aprobe.refresh(child)
 			else:
-				probeobj = probe(child)
+				probeobj = probe(child,self.confdata)
 				self.allprobes.append(probeobj)
 			#add all probe ids from the sensortree to this list
 			newprobeids.append(child.find("id").string)
@@ -223,8 +152,8 @@ class prtg_api(baseconfig):
 		self.set_property(name="interval",value=interval)
 				
 class channel(prtg_api):
-	def __init__(self,channelsoup,sensorid):
-		self.get_config()
+	def __init__(self,channelsoup,sensorid,confdata):
+		self.unpack_config(confdata)
 		self.sensorid = sensorid
 		for child in channelsoup.children:
 			if child.string is None:
@@ -260,8 +189,8 @@ class channel(prtg_api):
 		return("You cannot delete a channel")
 
 class sensor(prtg_api):
-	def __init__(self,sensorsoup,deviceid):
-		self.get_config()
+	def __init__(self,sensorsoup,deviceid,confdata):
+		self.unpack_config(confdata)
 		for child in sensorsoup.children:
 			if child.string is None:
 				child.string = ""
@@ -277,7 +206,7 @@ class sensor(prtg_api):
 		channelsoup = BeautifulSoup(req.text,"lxml")
 		if len(self.channels) == 0:
 			for child in channelsoup.find_all("item"):
-				self.channels.append(channel(child,self.id))
+				self.channels.append(channel(child,self.id,self.confdata))
 		else:
 			for child in channelsoup.find_all("item"):
 				for achannel in self.channels:
@@ -299,12 +228,12 @@ class sensor(prtg_api):
 		self.set_property(name="params",value=parameterstring)
 
 class device(prtg_api):
-	def __init__(self,devicesoup):
-		self.get_config()
+	def __init__(self,devicesoup,confdata):
+		self.unpack_config(confdata)
 		self.sensors = []
 		for child in devicesoup.children:
 			if child.name == "sensor":
-				sensorobj = sensor(child,self.id)
+				sensorobj = sensor(child,self.id,self.confdata)
 				self.sensors.append(sensorobj)
 				self.allsensors.append(sensorobj)
 			elif child.name is not None:
@@ -328,7 +257,7 @@ class device(prtg_api):
 						if asensor.id == child.find("id").string:
 							asensor.refresh(child)
 				else:
-					sensorobj = sensor(child,self.id)
+					sensorobj = sensor(child,self.id,self.confdata)
 					self.sensors.append(sensorobj)
 					self.allsensors.append(sensorobj)
 				newsensorids.append(child.find("id").string)
@@ -349,8 +278,8 @@ class device(prtg_api):
 		self.host = host
 
 class group(prtg_api):
-	def __init__(self,groupsoup):
-		self.get_config()
+	def __init__(self,groupsoup,confdata):
+		self.unpack_config(confdata)
 		self.groups = []
 		self.devices = []
 		#groupsoup is passed into __init__ method
@@ -358,11 +287,11 @@ class group(prtg_api):
 		#or a device/group object is created
 		for child in groupsoup.children:
 			if child.name == "device":
-				deviceobj = device(child)
+				deviceobj = device(child,self.confdata)
 				self.devices.append(deviceobj)
 				self.alldevices.append(deviceobj)
 			elif child.name == "group":
-				groupobj = group(child)
+				groupobj = group(child,self.confdata)
 				self.groups.append(groupobj)
 				self.allgroups.append(groupobj)				
 			elif child.name is not None:
@@ -394,7 +323,7 @@ class group(prtg_api):
 						if adevice.id == child.find("id").string:
 							adevice.refresh(child)
 				else:
-					deviceobj = device(child)
+					deviceobj = device(child,self.confdata)
 					self.devices.append(deviceobj)
 					self.alldevices.append(deviceobj)
 				newdeviceids.append(child.find("id").string)
@@ -404,7 +333,7 @@ class group(prtg_api):
 						if agroup.id == child.find("id").string:
 							agroup.refresh(child)
 				else:
-					groupobj = group(child)
+					groupobj = group(child,self.confdata)
 					self.groups.append(groupobj)
 					self.allgroups.append(groupobj)
 				newgroupids.append(child.find("id").string)
