@@ -72,9 +72,9 @@ class prtg_api(baseconfig):
 						setattr(self,childr.name,childr.string)
 	#str and repr allow the object id to show when viewing in arrays or printing
 	def __str__(self):
-		return(self.id)
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
 	def __repr__(self):
-		return(self.id)
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
 	def get_tree(self,root=''):
 		#gets sensortree from prtg. If no rootid is provided returns entire tree
 		tree_url = "table.xml?content=sensortree&output=xml&id={rootid}".format(rootid=root)
@@ -120,29 +120,80 @@ class prtg_api(baseconfig):
 		req = self.get_request(url_string=clone_url)
 	def refresh(self):
 		#download fresh sensortree
-		self.treesoup = self.get_tree()
+		self.treesoup = self.get_tree(root=self.id)
 		probeids = []
 		newprobeids = []
+		groupids = []
+		newgroupids = []
+		deviceids = []
+		newdeviceids = []
 		#get ids of existing probes
-		for aprobe in self.allprobes:
+		for aprobe in self.probes:
 			probeids.append(aprobe.id)
-		#for all the probes in sensortree, if it already exists refresh the object, otherwise create a new one	
-		for child in self.treesoup.find_all("probenode"):
-			if child.find("id").string in probeids:
-				for aprobe in self.allprobes:
-					if aprobe.id == child.find("id").string:
-						aprobe.refresh(child)
-			else:
-				probeobj = probe(child,self.confdata)
-				self.allprobes.append(probeobj)
-			#add all probe ids from the sensortree to this list
-			newprobeids.append(child.find("id").string)
+		for agroup in self.groups:
+			groupids.append(agroup.id)
+		for adevice in self.devices:
+			deviceids.append(adevice.id)
+		#for all the child objects in sensortree, if it already exists refresh the object, otherwise create a new one	
+		for child in self.treesoup.sensortree.nodes.children:
+			if child.name is not None:
+				for childr in child.children:
+					if childr.name == "probenode":
+						if childr.find("id").string in probeids:
+							for aprobe in self.probes:
+								if aprobe.id == childr.find("id").string:
+									aprobe.refresh(childr)
+						else:
+							probeobj = probe(childr,self.confdata)
+							self.probes.append(probeobj)
+							self.allprobes.append(probeobj)
+						#add all probe ids from the sensortree to this list
+						newprobeids.append(childr.find("id").string)
+					elif childr.name == "group":
+						if childr.find("id").string in groupids:
+							for agroup in self.groups:
+								if agroup.id == childr.find("id").string:
+									agroup.refresh(childr)
+						else:
+							groupobj = group(childr,self.confdata)
+							self.allgroups.append(groupobj)
+							self.groups.append(groupobj)
+						#add all probe ids from the sensortree to this list
+						newgroupids.append(childr.find("id").string)
+					elif childr.name == "device":
+						if childr.find("id").string in deviceids:
+							for adevice in self.devices:
+								if adevice.id == childr.find("id").string:
+									adevice.refresh(childr)
+						else:
+							deviceobj = device(childr,self.confdata)
+							self.alldevices.append(devicebj)
+							self.device.append(deviceobj)
+						#add all probe ids from the sensortree to this list
+						newdeviceids.append(childr.find("id").string)
+					elif childr.name is not None:
+						if childr.string is None:
+							childr.string = ""
+						setattr(self,childr.name,childr.string)
 		#if existing probes were not in the new sensortree, remove from allprobes
 		for id in probeids:
 			if id not in newprobeids:
-				for aprobe in self.allprobes:
+				for aprobe in self.probes:
 					if aprobe.id == id:
 						self.allprobes.remove(aprobe)
+						self.probes.remove(aprobe)
+		for id in groupids:
+			if id not in newgroupids:
+				for agroup in self.groups:
+					if agroup.id == id:
+						self.allgroups.remove(agroup)
+						self.groups.remove(agroup)
+		for id in deviceids:
+			if id not in newdeviceids:
+				for adevice in self.devices:
+					if adevice.id == id:
+						self.alldevice.remove(adevice)
+						self.devices.remove(adevice)
 	def delete(self,confirm=True):
 		if self.type == "Root":
 			return("You cannot delete the root object.")
