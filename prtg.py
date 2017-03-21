@@ -243,6 +243,10 @@ class channel(prtg_api):
 				setattr(self,child.name,child.string)
 		self.id = self.objid
 		self.type = "Channel"
+	def __str__(self):
+		return("<Name: {name}, ID: {id}>".format(name=self.name,id=self.id))
+	def __repr__(self):
+		return("<Name: {name}, ID: {id}>".format(name=self.name,id=self.id))
 	def rename(self,newname):
 		self.set_property(name="name",value=newname)
 		self.name = newname
@@ -474,6 +478,31 @@ class prtg_device(baseconfig):
 				if child.string is None:
 					child.string = ""
 				setattr(self,child.name,child.string)
+
+class prtg_sensor(baseconfig):
+	def __init__(self,host,port,user,passhash,protocol,sensorid):
+		self.confdata = (host,port,user,passhash,protocol)
+		self.unpack_config(self.confdata)
+		self.channels = []
+		soup = self.get_tree(root=sensorid)
+		for child in soup.sensortree.nodes.sensor:
+			if child.name is not None:
+				if child.string is None:
+					child.string = ""
+				setattr(self,child.name,child.string)
+		self.get_channels()
+	def get_channels(self):
+		channel_url = "table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}".format(sensorid=self.id)
+		req = self.get_request(url_string=channel_url)
+		channelsoup = BeautifulSoup(req.text,"lxml")
+		if len(self.channels) == 0:
+			for child in channelsoup.find_all("item"):
+				self.channels.append(channel(child,self.id,self.confdata))
+		else:
+			for child in channelsoup.find_all("item"):
+				for achannel in self.channels:
+					if achannel.objid == child.find("objid").string:
+						achannel.refresh(child)
 
 class AuthenticationError(Exception):
 	pass
