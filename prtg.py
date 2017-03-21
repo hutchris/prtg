@@ -28,10 +28,10 @@ class baseconfig(object):
 		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
 	def clear_arrays(self):
-		self.allprobes.clear()
-		self.allgroups.clear()
-		self.alldevices.clear()
-		self.allsensors.clear()
+		del self.allprobes[:]
+		del self.allgroups[:]
+		del self.alldevices[:]
+		del self.allsensors[:]
 	def delete(self,confirm=True):
 		if self.type == "Root":
 			return("You cannot delete the root object.")
