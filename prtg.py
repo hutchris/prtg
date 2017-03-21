@@ -5,7 +5,17 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+class global_arrays(object):
+	allprobes = []
+	allgroups = []
+	alldevices = []
+	allsensors = []
+
 class baseconfig(object):
+	def __str__(self):
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
+	def __repr__(self):
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
 	def set_config(self,host,port,user,passhash,protocol):
 		self.confdata = (host,port,user,passhash,protocol)
 	def unpack_config(self,confdata):
@@ -22,13 +32,77 @@ class baseconfig(object):
 		self.allgroups.clear()
 		self.alldevices.clear()
 		self.allsensors.clear()
+	def delete(self,confirm=True):
+		if self.type == "Root":
+			return("You cannot delete the root object.")
+		else:
+			delete_url = "deleteobject.htm?id={objid}&approve=1}".format(objid=self.id)
+			if confirm:
+				response = ""
+				while response.upper() not in ["Y","N"]:
+					response = str(input("Would you like to continue?(Y/[N])  "))
+					if response == "":
+						response = "N"
+				if response.upper() == "Y":
+					req = self.get_request(url_string=delete_url)
+			else:
+				req = self.get_request(url_string=delete_url)
+	def set_property(self,name,value):
+		if self.type != "Channel":
+			setprop_url = "setobjectproperty.htm?id={objid}&name={propname}&value={propval}".format(objid=self.id,propname=name,propval=value)
+		else:
+			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
+		req = self.get_request(url_string=setprop_url)
+	def set_interval(self,interval):
+		'''note: you will still need to disable inheritance manually.
+		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
+		self.set_property(name="interval",value=interval)
+	def get_tree(self,root=''):
+		#gets sensortree from prtg. If no rootid is provided returns entire tree
+		tree_url = "table.xml?content=sensortree&output=xml&id={rootid}".format(rootid=root)
+		req = self.get_request(url_string=tree_url)
+		raw_data = req.text
+		treesoup = BeautifulSoup(raw_data,"lxml")
+		#returns the xml as a beautifulsoup object
+		return(treesoup)
+	def get_request(self,url_string):
+		#global method for api calls. Provides errors for the 401 and 404 responses
+		url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
+		req = requests.get(url,verify=False)
+		if req.status_code == 200:
+			return(req)
+		elif req.status_code == 401:
+			raise(AuthenticationError("PRTG authentication failed. Check credentials in config file"))
+		elif req.status_code == 404:
+			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
+	def rename(self,newname):
+		rename_url = "rename.htm?id={objid}&value={name}".format(objid=self.id,name=newname)
+		req = self.get_request(url_string=rename_url)
+		self.name = newname
+	def pause(self,duration=0,message=""):
+		if duration > 0:
+			pause_url = "pauseobjectfor.htm?id={objid}&duration={time}".format(objid=self.id,time=str(duration))
+		else:
+			pause_url = "pause.htm?id={objid}&action=0".format(objid=self.id)
+		if message:
+			pause_url += "&pausemsg={string}".format(string=message)
+		req = self.get_request(url_string=pause_url)
+		self.status = "Paused"
+		self.active = "false"
+		self.status_raw = "7"
+	def resume(self):
+		resume_url = "pause.htm?id={objid}&action=1".format(objid=self.id)
+		req = self.get_request(url_string=resume_url)
+		#these are question marks because we don't know what status is after resume
+		self.status = "?"
+		self.active = "true"
+		self.status_raw = "?"
+	def clone(self,newname,newplaceid):
+		clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
+		req = self.get_request(url_string=clone_url)
 	#define global arrays, inherited to all objects
-	allprobes = []
-	allgroups = []
-	alldevices = []
-	allsensors = []
 		
-class prtg_api(baseconfig):
+class prtg_api(global_arrays,baseconfig):
 	'''
 	Parameters:
 	- host: Enter the ip address or hostname where PRTG is running
@@ -76,54 +150,6 @@ class prtg_api(baseconfig):
 						if childr.string is None:
 							childr.string = ""
 						setattr(self,childr.name,childr.string)
-	#str and repr allow the object id to show when viewing in arrays or printing
-	def __str__(self):
-		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
-	def __repr__(self):
-		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
-	def get_tree(self,root=''):
-		#gets sensortree from prtg. If no rootid is provided returns entire tree
-		tree_url = "table.xml?content=sensortree&output=xml&id={rootid}".format(rootid=root)
-		req = self.get_request(url_string=tree_url)
-		raw_data = req.text
-		treesoup = BeautifulSoup(raw_data,"lxml")
-		#returns the xml as a beautifulsoup object
-		return(treesoup)
-	def get_request(self,url_string):
-		#global method for api calls. Provides errors for the 401 and 404 responses
-		url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
-		req = requests.get(url,verify=False)
-		if req.status_code == 200:
-			return(req)
-		elif req.status_code == 401:
-			raise(AuthenticationError("PRTG authentication failed. Check credentials in config file"))
-		elif req.status_code == 404:
-			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
-	def rename(self,newname):
-		rename_url = "rename.htm?id={objid}&value={name}".format(objid=self.id,name=newname)
-		req = self.get_request(url_string=rename_url)
-		self.name = newname
-	def pause(self,duration=0,message=""):
-		if duration > 0:
-			pause_url = "pauseobjectfor.htm?id={objid}&duration={time}".format(objid=self.id,time=str(duration))
-		else:
-			pause_url = "pause.htm?id={objid}&action=0".format(objid=self.id)
-		if message:
-			pause_url += "&pausemsg={string}".format(string=message)
-		req = self.get_request(url_string=pause_url)
-		self.status = "Paused"
-		self.active = "false"
-		self.status_raw = "7"
-	def resume(self):
-		resume_url = "pause.htm?id={objid}&action=1".format(objid=self.id)
-		req = self.get_request(url_string=resume_url)
-		#these are question marks because we don't know what status is after resume
-		self.status = "?"
-		self.active = "true"
-		self.status_raw = "?"
-	def clone(self,newname,newplaceid):
-		clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
-		req = self.get_request(url_string=clone_url)
 	def refresh(self):
 		#download fresh sensortree
 		self.treesoup = self.get_tree(root=self.id)
@@ -200,31 +226,6 @@ class prtg_api(baseconfig):
 					if adevice.id == id:
 						self.alldevice.remove(adevice)
 						self.devices.remove(adevice)
-	def delete(self,confirm=True):
-		if self.type == "Root":
-			return("You cannot delete the root object.")
-		else:
-			delete_url = "deleteobject.htm?id={objid}&approve=1}".format(objid=self.id)
-			if confirm:
-				response = ""
-				while response.upper() not in ["Y","N"]:
-					response = str(input("Would you like to continue?(Y/[N])  "))
-					if response == "":
-						response = "N"
-				if response.upper() == "Y":
-					req = self.get_request(url_string=delete_url)
-			else:
-				req = self.get_request(url_string=delete_url)
-	def set_property(self,name,value):
-		if self.type != "Channel":
-			setprop_url = "setobjectproperty.htm?id={objid}&name={propname}&value={propval}".format(objid=self.id,propname=name,propval=value)
-		else:
-			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
-		req = self.get_request(url_string=setprop_url)
-	def set_interval(self,interval):
-		'''note: you will still need to disable inheritance manually.
-		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
-		self.set_property(name="interval",value=interval)
 	def search_byid(self,id):
 		id = str(id)
 		for obj in self.allprobes + self.allgroups + self.alldevices + self.allsensors:
@@ -440,7 +441,40 @@ class group(prtg_api):
 #probe is the same as group so it inherits all methods and attributes except type				
 class probe(group):		
 	type = "Probe"
-			
+		
+class prtg_device(baseconfig):
+	def __init__(self,host,port,user,passhash,protocol,deviceid):
+		self.confdata = (host,port,user,passhash,protocol)
+		self.unpack_config(self.confdata)
+		self.sensors = []
+		soup = self.get_tree(root=deviceid)
+		for child in soup.sensortree.nodes.device:
+			if child.name == "sensor":
+				sensorobj = sensor(child,self.id,self.confdata)
+				self.sensors.append(sensorobj)
+			elif child.name is not None:
+				if child.string is None:
+					child.string = ""
+				setattr(self,child.name,child.string)
+	def refresh(self):
+		soup = self.get_tree(root=deviceid)
+		sensorids = []
+		for asensor in self.sensors:
+			sensorids.append(asensor.id)
+		for child in soup.sensortree.nodes.device:
+			if child.name == "sensor":
+				if child.find("id").string in sensorids:
+					for asensor in self.sensors:
+						if asensor.id == child.find("id").string:
+							asensor.refresh(child)
+				else:
+					sensorobj = sensor(child,self.id,self.confdata)
+					self.sensors.append(sensorobj)
+			elif child.name is not None:
+				if child.string is None:
+					child.string = ""
+				setattr(self,child.name,child.string)
+
 class AuthenticationError(Exception):
 	pass
 
