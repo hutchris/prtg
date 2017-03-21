@@ -107,3 +107,20 @@ for device in prtg.alldevices:
     device.resume()
 
 ```
+
+The prtg_api class can be used with the root id set as the root group, a probe, or a group. If you wanted to manage a device or sensor and don't want to download the entire sensortree to loop through the results; you can use the prtg_device and prtg_sensor classes. For example:
+
+```
+host = '192.168.1.1'
+port = '80'
+user = 'prtgadmin'
+passhash = '0000000'
+protocol = 'http'
+deviceid = '2025'
+
+device = prtg_device(host,port,user,passhash,protocol,deviceid)
+
+sensorid = '2123'
+
+sensor = prtg_sensor(host,port,user,passhash,protocol,sensorid)
+```
