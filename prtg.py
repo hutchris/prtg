@@ -17,6 +17,13 @@ class baseconfig(object):
 		self.confdata = confdata
 		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
+	def clear_arrays(self):
+		for p in self.allprobes:
+			self.allprobes.remove(p)
+		for g in self.allgroups:
+			self.allgroups.remove(g)
+		for d in self.alldevices:
+			self.alldevices.remove(d)
 	#define global arrays, inherited to all objects
 	allprobes = []
 	allgroups = []
@@ -45,6 +52,7 @@ class prtg_api(baseconfig):
 	def __init__(self,host,port,user,passhash,protocol,rootid=0):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
+		self.clear_arrays()
 		self.probes = []
 		self.groups = []
 		self.devices = []
