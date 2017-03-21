@@ -6,7 +6,7 @@ Prerequisites:
 - requests
 - lxml
 
-Tested only on Python 3.5.2 so far. Works with python 2.7, not tested extensively.
+Tested only on Python 3.5.2 so far. Does not work with python 2.7 because it uses array.clear(). 
 
 This is a Python module to facilitate in managing PRTG servers from CLI or for automating changes. It is really useful for scripting changes to prtg objects.
 
