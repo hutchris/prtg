@@ -18,12 +18,10 @@ class baseconfig(object):
 		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
 	def clear_arrays(self):
-		for p in self.allprobes:
-			self.allprobes.remove(p)
-		for g in self.allgroups:
-			self.allgroups.remove(g)
-		for d in self.alldevices:
-			self.alldevices.remove(d)
+		self.allprobes.clear()
+		self.allgroups.clear()
+		self.alldevices.clear()
+		self.allsensors.clear()
 	#define global arrays, inherited to all objects
 	allprobes = []
 	allgroups = []
