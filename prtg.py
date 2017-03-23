@@ -26,6 +26,7 @@ class baseconfig(object):
 		self.protocol = confdata[4]
 		self.confdata = confdata
 		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
+		self.base_url_no_api = "{protocol}://{host}:{port}/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
 	def clear_arrays(self):
 		del self.allprobes[:]
@@ -65,9 +66,12 @@ class baseconfig(object):
 		treesoup = BeautifulSoup(raw_data,"lxml")
 		#returns the xml as a beautifulsoup object
 		return(treesoup)
-	def get_request(self,url_string):
+	def get_request(self,url_string,api=True):
 		#global method for api calls. Provides errors for the 401 and 404 responses
-		url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
+		if api:
+			url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
+		else:
+			url = "{base}{content}&{auth}".format(base=self.base_url_no_api,content=url_string,auth=self.url_auth)
 		req = requests.get(url,verify=False)
 		if req.status_code == 200:
 			return(req)
@@ -311,6 +315,30 @@ class sensor(prtg_api):
 			self.get_channels()
 	def set_additional_param(self,parameterstring):
 		self.set_property(name="params",value=parameterstring)
+	def save_graph(self,graphid,filepath,size,hidden_channels=''):
+		'''
+		Size options: S,M,L
+		'''
+		if size.upper() == "L":
+			width = "1500"
+			height = "500"
+			font = "13"
+		elif size.upper() == "S":
+			width = "400"
+			height = "300"
+			font = "9"
+		else:
+			width = "800"
+			height = "350"
+			font = "13"
+		if hidden_channels:
+			hidden_channels = "&hide={hc}".format(hc=hidden_channels)
+		chart_url = "chart.png?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
+			gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
+		req = self.get_request(url_string=chart_url,api=False)
+		with open(filepath,"wb") as imgfile:
+			for chunk in req:
+				imgfile.write(chunk)
 
 class device(prtg_api):
 	def __init__(self,devicesoup,confdata):
@@ -491,6 +519,15 @@ class prtg_sensor(baseconfig):
 					child.string = ""
 				setattr(self,child.name,child.string)
 		self.get_channels()
+	def refresh(self):
+		soup = self.get_tree(root=self.id)
+		for child in soup.sensortree.nodes.sensor.children:
+			if child.string is None:
+				child.string = ""
+			if child.name is not None:
+				setattr(self,child.name,child.string)
+		setattr(self,"attributes",sensorsoup.attrs)
+		self.get_channels()
 	def get_channels(self):
 		channel_url = "table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}".format(sensorid=self.id)
 		req = self.get_request(url_string=channel_url)
@@ -503,6 +540,30 @@ class prtg_sensor(baseconfig):
 				for achannel in self.channels:
 					if achannel.objid == child.find("objid").string:
 						achannel.refresh(child)
+	def save_graph(self,graphid,filepath,size,hidden_channels=''):
+		'''
+		Size options: S,M,L
+		'''
+		if size.upper() == "L":
+			width = "1500"
+			height = "500"
+			font = "13"
+		elif size.upper() == "S":
+			width = "400"
+			height = "300"
+			font = "9"
+		else:
+			width = "800"
+			height = "350"
+			font = "13"
+		if hidden_channels:
+			hidden_channels = "&hide={hc}".format(hc=hidden_channels)
+		chart_url = "chart.png?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
+			gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
+		req = self.get_request(url_string=chart_url,api=False)
+		with open(filepath,"wb") as imgfile:
+			for chunk in req:
+				imgfile.write(chunk)
 
 class AuthenticationError(Exception):
 	pass
