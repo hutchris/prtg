@@ -339,6 +339,7 @@ class sensor(prtg_api):
 		with open(filepath,"wb") as imgfile:
 			for chunk in req:
 				imgfile.write(chunk)
+		self.filepath = filepath
 
 class device(prtg_api):
 	def __init__(self,devicesoup,confdata):
@@ -564,6 +565,7 @@ class prtg_sensor(baseconfig):
 		with open(filepath,"wb") as imgfile:
 			for chunk in req:
 				imgfile.write(chunk)
+		self.filepath = filepath
 
 class AuthenticationError(Exception):
 	pass
