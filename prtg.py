@@ -54,6 +54,7 @@ class baseconfig(object):
 		else:
 			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
 		req = self.get_request(url_string=setprop_url)
+		self.name = value
 	def get_property(self,name):
 		if self.type != "Channel":
 			getprop_url = "getobjectproperty.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
