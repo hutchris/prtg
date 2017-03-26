@@ -66,6 +66,8 @@ Current methods and parameters (* = required) on all objects include:
 - set_property
  - name*
  - value*
+- get_property
+ - name*
 - set_additional_param (for custom script sensors)
  - param*
 - set_interval
