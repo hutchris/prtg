@@ -54,6 +54,18 @@ class baseconfig(object):
 		else:
 			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
 		req = self.get_request(url_string=setprop_url)
+	def get_property(self,name):
+		if self.type != "Channel":
+			getprop_url = "getobjectproperty.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
+		else:
+			getprop_url = "getobjectproperty.htm?id={objid}&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
+		req = self.get_request(url_string=getprop_url)
+		soup = BeautifulSoup(req.text,'lxml')
+		if soup.result.text != "(Property not found)":
+			setattr(self,name,soup.result.text)
+			return(soup.result.text)
+		else:
+			raise(ResourceNotFound("No object property of name: {name}".format(name=name)))
 	def set_interval(self,interval):
 		'''note: you will still need to disable inheritance manually.
 		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
