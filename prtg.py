@@ -78,7 +78,10 @@ class baseconfig(object):
 		raw_data = req.text
 		treesoup = BeautifulSoup(raw_data,"lxml")
 		#returns the xml as a beautifulsoup object
-		return(treesoup)
+		if len(treesoup.sensortree.nodes) > 0:
+			return(treesoup)
+		else:
+			raise(ResourceNotFound("No objects at ID: {id}".format(id=root)))
 	def get_request(self,url_string,api=True):
 		#global method for api calls. Provides errors for the 401 and 404 responses
 		if api:
