@@ -6,7 +6,7 @@ Prerequisites:
 - requests
 - lxml
 
-Tested only on Python 3.5.2 so far. Does not work with python 2.7 because it uses array.clear(). 
+Tested only on Python 3.5.2 so far. Does work with python 2.7 but not extensively tested. 
 
 This is a Python module to facilitate in managing PRTG servers from CLI or for automating changes. It is really useful for scripting changes to prtg objects.
 
@@ -66,6 +66,8 @@ Current methods and parameters (* = required) on all objects include:
 - set_property
  - name*
  - value*
+- get_property
+ - name*
 - set_additional_param (for custom script sensors)
  - param*
 - set_interval
@@ -79,7 +81,17 @@ To come:
 
 If you are making small changes such as pause, resume, rename; the local data will update as you go. If you are doing larger changes you should refresh the data after each change. If you refresh the main prtg object it will refresh everything otherwise you can just refresh an object further down the tree to only refresh part of the local data. To refresh an object call the .refresh() method.
 
-The set_property method is very powerful and flexible. You can change anything for an object that you can change in the objects settings tab in the web ui. I will add the more commonly used settings as seperate methods.
+The set_property method is very powerful and flexible. You can change anything for an object that you can change in the objects settings tab in the web ui. I will add the more commonly used settings as seperate methods. You can use the get_property method to test the name of the property:
+
+```
+from prtg import prtg_api
+
+prtg = prtg_api('192.168.1.1','80','prtgadmin','0000000000','http')
+prtg.get_property(name='location')
+#returns the location and sets prtg.location to the result.
+
+prtg.set_property(name='location',value='Canada')
+```
 
 There are delays with some actions such as resuming so you should add time delays where appropriate.
 

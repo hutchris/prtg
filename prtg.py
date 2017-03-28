@@ -54,6 +54,19 @@ class baseconfig(object):
 		else:
 			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
 		req = self.get_request(url_string=setprop_url)
+		self.name = value
+	def get_property(self,name):
+		if self.type != "Channel":
+			getprop_url = "getobjectproperty.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
+		else:
+			getprop_url = "getobjectproperty.htm?id={objid}&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
+		req = self.get_request(url_string=getprop_url)
+		soup = BeautifulSoup(req.text,'lxml')
+		if soup.result.text != "(Property not found)":
+			setattr(self,name,soup.result.text)
+			return(soup.result.text)
+		else:
+			raise(self.ResourceNotFound("No object property of name: {name}".format(name=name)))
 	def set_interval(self,interval):
 		'''note: you will still need to disable inheritance manually.
 		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
@@ -65,7 +78,10 @@ class baseconfig(object):
 		raw_data = req.text
 		treesoup = BeautifulSoup(raw_data,"lxml")
 		#returns the xml as a beautifulsoup object
-		return(treesoup)
+		if len(treesoup.sensortree.nodes) > 0:
+			return(treesoup)
+		else:
+			raise(self.ResourceNotFound("No objects at ID: {id}".format(id=root)))
 	def get_request(self,url_string,api=True):
 		#global method for api calls. Provides errors for the 401 and 404 responses
 		if api:
@@ -76,9 +92,9 @@ class baseconfig(object):
 		if req.status_code == 200:
 			return(req)
 		elif req.status_code == 401:
-			raise(AuthenticationError("PRTG authentication failed. Check credentials in config file"))
+			raise(self.AuthenticationError("PRTG authentication failed. Check credentials in config file"))
 		elif req.status_code == 404:
-			raise(ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
+			raise(self.ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
 	def rename(self,newname):
 		rename_url = "rename.htm?id={objid}&value={name}".format(objid=self.id,name=newname)
 		req = self.get_request(url_string=rename_url)
@@ -105,6 +121,10 @@ class baseconfig(object):
 		clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
 		req = self.get_request(url_string=clone_url)
 	#define global arrays, inherited to all objects
+	class AuthenticationError(Exception):
+		pass
+	class ResourceNotFound(Exception):
+		pass
 		
 class prtg_api(global_arrays,baseconfig):
 	'''
@@ -566,9 +586,3 @@ class prtg_sensor(baseconfig):
 			for chunk in req:
 				imgfile.write(chunk)
 		self.filepath = filepath
-
-class AuthenticationError(Exception):
-	pass
-
-class ResourceNotFound(Exception):
-	pass
