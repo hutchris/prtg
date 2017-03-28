@@ -55,18 +55,27 @@ class baseconfig(object):
 			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
 		req = self.get_request(url_string=setprop_url)
 		self.name = value
-	def get_property(self,name):
+	def get_property(self,name,raw=False):
 		if self.type != "Channel":
 			getprop_url = "getobjectproperty.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
+			getprop_url2 = "getobjectstatus.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
 		else:
 			getprop_url = "getobjectproperty.htm?id={objid}&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
-		req = self.get_request(url_string=getprop_url)
-		soup = BeautifulSoup(req.text,'lxml')
-		if soup.result.text != "(Property not found)":
-			setattr(self,name,soup.result.text)
-			return(soup.result.text)
-		else:
-			raise(self.ResourceNotFound("No object property of name: {name}".format(name=name)))
+			getprop_url2 = "getobjectstatus.htm?id={objid}&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
+		failures = 0
+		for url in [getprop_url,getprop_url2]:
+			req = self.get_request(url_string=url)
+			soup = BeautifulSoup(req.text,'lxml')
+			if soup.result.text not in ["(Property not found)","Not found"]:
+				setattr(self,name,soup.result.text)
+				if raw:
+					return(soup)
+				else:
+					return(soup.result.text)
+			elif failures == 0:
+				failures += 1
+			else:
+				raise(self.ResourceNotFound("No object property of name: {name}".format(name=name)))
 	def set_interval(self,interval):
 		'''note: you will still need to disable inheritance manually.
 		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
@@ -121,6 +130,11 @@ class baseconfig(object):
 		clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
 		req = self.get_request(url_string=clone_url)
 	#define global arrays, inherited to all objects
+	def get_parentdata(self):
+		self.parenttree = []
+		soup = self.get_property(name="probegroupdevice",raw=True)
+		for child in soup.find_all("a"):
+			self.parenttree.append({'name':child.text.strip(),'id':child.get("id")})
 	class AuthenticationError(Exception):
 		pass
 	class ResourceNotFound(Exception):
@@ -152,22 +166,24 @@ class prtg_api(global_arrays,baseconfig):
 		self.probes = []
 		self.groups = []
 		self.devices = []
+		self.type = "Root"
 		#get sensortree from root id downwards
 		self.treesoup = self.get_tree(root=rootid)
+		self.name = self.treesoup.nodes.find("name").text
 		#Finds all the direct child nodes in sensortree and creates python objects, passes each object its xml data
 		for child in self.treesoup.sensortree.nodes.children:
 			if child.name is not None:
 				for childr in child.children:
 					if childr.name == "probenode":
-						probeobj = probe(childr,self.confdata)
+						probeobj = probe(childr,self.confdata,{'name':self.name,'id':self.id})
 						self.allprobes.append(probeobj)
 						self.probes.append(probeobj)
 					elif childr.name == "device":
-						deviceobj = device(childr,self.confdata)
+						deviceobj = device(childr,self.confdata,{'name':self.name,'id':self.id})
 						self.devices.append(deviceobj)
 						self.alldevices.append(deviceobj)
 					elif childr.name == "group":
-						groupobj = group(childr,self.confdata)
+						groupobj = group(childr,self.confdata,{'name':self.name,'id':self.id})
 						self.groups.append(groupobj)
 						self.allgroups.append(groupobj)
 					elif childr.name is not None:
@@ -200,7 +216,7 @@ class prtg_api(global_arrays,baseconfig):
 								if aprobe.id == childr.find("id").string:
 									aprobe.refresh(childr)
 						else:
-							probeobj = probe(childr,self.confdata)
+							probeobj = probe(childr,self.confdata,{'name':self.name,'id':self.id})
 							self.probes.append(probeobj)
 							self.allprobes.append(probeobj)
 						#add all probe ids from the sensortree to this list
@@ -211,7 +227,7 @@ class prtg_api(global_arrays,baseconfig):
 								if agroup.id == childr.find("id").string:
 									agroup.refresh(childr)
 						else:
-							groupobj = group(childr,self.confdata)
+							groupobj = group(childr,self.confdata,{'name':self.name,'id':self.id})
 							self.allgroups.append(groupobj)
 							self.groups.append(groupobj)
 						#add all probe ids from the sensortree to this list
@@ -222,7 +238,7 @@ class prtg_api(global_arrays,baseconfig):
 								if adevice.id == childr.find("id").string:
 									adevice.refresh(childr)
 						else:
-							deviceobj = device(childr,self.confdata)
+							deviceobj = device(childr,self.confdata,{'name':self.name,'id':self.id})
 							self.alldevices.append(devicebj)
 							self.device.append(deviceobj)
 						#add all probe ids from the sensortree to this list
@@ -257,9 +273,10 @@ class prtg_api(global_arrays,baseconfig):
 				return(obj)
 				
 class channel(prtg_api):
-	def __init__(self,channelsoup,sensorid,confdata):
+	def __init__(self,channelsoup,sensorid,confdata,parentdata):
 		self.unpack_config(confdata)
 		self.sensorid = sensorid
+		self.parent = parentdata
 		for child in channelsoup.children:
 			if child.string is None:
 				child.string = ""
@@ -298,16 +315,17 @@ class channel(prtg_api):
 		return("You cannot delete a channel")
 
 class sensor(prtg_api):
-	def __init__(self,sensorsoup,deviceid,confdata):
+	def __init__(self,sensorsoup,deviceid,confdata,parentdata):
 		self.unpack_config(confdata)
+		self.type = "Sensor"
 		for child in sensorsoup.children:
 			if child.string is None:
 				child.string = ""
 			if child.name is not None:
 				setattr(self,child.name,child.string)
+		self.parent = parentdata
 		setattr(self,"attributes",sensorsoup.attrs)
 		self.channels = []
-		self.type = "Sensor"
 		self.deviceid = deviceid
 	def get_channels(self):
 		channel_url = "table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}".format(sensorid=self.id)
@@ -315,7 +333,8 @@ class sensor(prtg_api):
 		channelsoup = BeautifulSoup(req.text,"lxml")
 		if len(self.channels) == 0:
 			for child in channelsoup.find_all("item"):
-				self.channels.append(channel(child,self.id,self.confdata))
+				channelobj = channel(child,self.id,self.confdata,{'name':self.name,'id':self.id})
+				self.channels.append(channelobj)
 		else:
 			for child in channelsoup.find_all("item"):
 				for achannel in self.channels:
@@ -362,20 +381,21 @@ class sensor(prtg_api):
 		self.filepath = filepath
 
 class device(prtg_api):
-	def __init__(self,devicesoup,confdata):
+	def __init__(self,devicesoup,confdata,parentdata):
 		self.unpack_config(confdata)
+		self.type = "Device"
+		self.parent = parentdata
 		self.sensors = []
 		for child in devicesoup.children:
-			if child.name == "sensor":
-				sensorobj = sensor(child,self.id,self.confdata)
-				self.sensors.append(sensorobj)
-				self.allsensors.append(sensorobj)
-			elif child.name is not None:
+			if child.name != "sensor" and child.name is not None:
 				if child.string is None:
 					child.string = ""
 				setattr(self,child.name,child.string)
-		setattr(self,"attributes",devicesoup.attrs)
-		self.type = "Device"
+		for child in devicesoup.children:
+			if child.name == "sensor":
+				sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
+				self.sensors.append(sensorobj)
+				self.allsensors.append(sensorobj)
 	def refresh(self,devicesoup=None):
 		if devicesoup is None:
 			soup = self.get_tree(root=self.id)
@@ -391,7 +411,7 @@ class device(prtg_api):
 						if asensor.id == child.find("id").string:
 							asensor.refresh(child)
 				else:
-					sensorobj = sensor(child,self.id,self.confdata)
+					sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
 					self.sensors.append(sensorobj)
 					self.allsensors.append(sensorobj)
 				newsensorids.append(child.find("id").string)
@@ -412,26 +432,28 @@ class device(prtg_api):
 		self.host = host
 
 class group(prtg_api):
-	def __init__(self,groupsoup,confdata):
+	def __init__(self,groupsoup,confdata,parentdata):
 		self.unpack_config(confdata)
+		self.parent = parentdata
 		self.groups = []
 		self.devices = []
 		#groupsoup is passed into __init__ method
 		#The children objects are either added to this object as an attribute
 		#or a device/group object is created
 		for child in groupsoup.children:
-			if child.name == "device":
-				deviceobj = device(child,self.confdata)
-				self.devices.append(deviceobj)
-				self.alldevices.append(deviceobj)
-			elif child.name == "group":
-				groupobj = group(child,self.confdata)
-				self.groups.append(groupobj)
-				self.allgroups.append(groupobj)				
-			elif child.name is not None:
+			if child.name is not None and child.name not in ["device","group"]:
 				if child.string is None:
 					child.string = ""
 				setattr(self,child.name,child.string)
+		for child in groupsoup.children:
+			if child.name == "device":
+				deviceobj = device(child,self.confdata,{'name':self.name,'id':self.id})
+				self.devices.append(deviceobj)
+				self.alldevices.append(deviceobj)
+			elif child.name == "group":
+				groupobj = group(child,self.confdata,{'name':self.name,'id':self.id})
+				self.groups.append(groupobj)
+				self.allgroups.append(groupobj)
 		setattr(self,"attributes",groupsoup.attrs)
 		self.type = "Group"
 	def refresh(self,groupsoup=None):
@@ -457,7 +479,7 @@ class group(prtg_api):
 						if adevice.id == child.find("id").string:
 							adevice.refresh(child)
 				else:
-					deviceobj = device(child,self.confdata)
+					deviceobj = device(child,self.confdata,{'name':self.name,'id':self.id})
 					self.devices.append(deviceobj)
 					self.alldevices.append(deviceobj)
 				newdeviceids.append(child.find("id").string)
@@ -467,7 +489,7 @@ class group(prtg_api):
 						if agroup.id == child.find("id").string:
 							agroup.refresh(child)
 				else:
-					groupobj = group(child,self.confdata)
+					groupobj = group(child,self.confdata,{'name':self.name,'id':self.id})
 					self.groups.append(groupobj)
 					self.allgroups.append(groupobj)
 				newgroupids.append(child.find("id").string)
@@ -501,9 +523,10 @@ class prtg_device(baseconfig):
 		self.unpack_config(self.confdata)
 		self.sensors = []
 		soup = self.get_tree(root=deviceid)
+		self.get_parentdata()
 		for child in soup.sensortree.nodes.device:
 			if child.name == "sensor":
-				sensorobj = sensor(child,self.id,self.confdata)
+				sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
 				self.sensors.append(sensorobj)
 			elif child.name is not None:
 				if child.string is None:
@@ -521,7 +544,7 @@ class prtg_device(baseconfig):
 						if asensor.id == child.find("id").string:
 							asensor.refresh(child)
 				else:
-					sensorobj = sensor(child,self.id,self.confdata)
+					sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
 					self.sensors.append(sensorobj)
 			elif child.name is not None:
 				if child.string is None:
@@ -532,7 +555,9 @@ class prtg_sensor(baseconfig):
 	def __init__(self,host,port,user,passhash,protocol,sensorid):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
+		self.type = "Sensor"
 		self.channels = []
+		self.parenttree = get_parentdata()
 		soup = self.get_tree(root=sensorid)
 		for child in soup.sensortree.nodes.sensor:
 			if child.name is not None:
@@ -555,7 +580,8 @@ class prtg_sensor(baseconfig):
 		channelsoup = BeautifulSoup(req.text,"lxml")
 		if len(self.channels) == 0:
 			for child in channelsoup.find_all("item"):
-				self.channels.append(channel(child,self.id,self.confdata))
+				channelobj = channel(child,self.id,self.confdata,{'name':self.name,'id':self.id})
+				self.channels.append(channelobj)
 		else:
 			for child in channelsoup.find_all("item"):
 				for achannel in self.channels:
