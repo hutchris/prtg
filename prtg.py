@@ -523,15 +523,17 @@ class prtg_device(baseconfig):
 		self.unpack_config(self.confdata)
 		self.sensors = []
 		soup = self.get_tree(root=deviceid)
-		self.get_parentdata()
+		self.type = "Device"
+		for child in soup.sensortree.nodes.device:
+			if child.name is not None and child.name != "sensor":
+				if child.string is None:
+					child.string = ""
+				setattr(self,child.name,child.string)
 		for child in soup.sensortree.nodes.device:
 			if child.name == "sensor":
 				sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
 				self.sensors.append(sensorobj)
-			elif child.name is not None:
-				if child.string is None:
-					child.string = ""
-				setattr(self,child.name,child.string)
+		self.get_parentdata()
 	def refresh(self):
 		soup = self.get_tree(root=deviceid)
 		sensorids = []
@@ -557,7 +559,6 @@ class prtg_sensor(baseconfig):
 		self.unpack_config(self.confdata)
 		self.type = "Sensor"
 		self.channels = []
-		self.parenttree = get_parentdata()
 		soup = self.get_tree(root=sensorid)
 		for child in soup.sensortree.nodes.sensor:
 			if child.name is not None:
@@ -565,6 +566,7 @@ class prtg_sensor(baseconfig):
 					child.string = ""
 				setattr(self,child.name,child.string)
 		self.get_channels()
+		self.parenttree = get_parentdata()
 	def refresh(self):
 		soup = self.get_tree(root=self.id)
 		for child in soup.sensortree.nodes.sensor.children:
