@@ -1,6 +1,6 @@
 import os
 import requests
-from datetime import datetime
+from datetime import datetime,timedelta
 from bs4 import BeautifulSoup
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
@@ -594,7 +594,7 @@ class prtg_sensor(baseconfig):
 				imgfile.write(chunk)
 		self.filepath = filepath
 
-class prtg_data(connection_methods):
+class prtg_historic_data(connection_methods):
 	'''class used for calls to the historic data api.
 	Call the class first using connection params then use
 	methods to get/process data. yyyy-mm-dd-hh-mm-ss'''
@@ -608,7 +608,21 @@ class prtg_data(connection_methods):
 		historic_url = "historicdata.xml?id={id}&avg={avg}&sdate={sdate}&edate={edate}".format(id=objid,avg=timeaverage,sdate=startdate,edate=enddate)
 		req = self.get_request(url_string=historic_url)
 		historic_soup = BeautifulSoup(req.text,'lxml')
+		data = {'datetimes':[]}
 		for item in historic_soup.find_all("item"):
-			
+			if item.name is not None:
+				for child in item.children:
+					if child.name == 'datetime':
+						dateobj = datetime.strptime(child.text[:child.text.index(" -")],"%m/%d/%Y %H:%M:%S %p")
+						dateobj = dateobj + timedelta(seconds=int(timeaverage)/2)
+						data['datetimes'].append(dateobj)
+					elif child.has_attr('channel') and child.name == 'value':
+						if child.attrs['channel'] not in data.keys():
+							data[child.attrs['channel']]['unit'] = [(child.text).split(" ")[1]]
+							data[child.attrs['channel']]['values'] = [float((child.text).split(" ")[0])]
+						else:
+							data[child.attrs['channel']].append(float((child.text).split(" ")[0]))
+
+			 
 		
 		
