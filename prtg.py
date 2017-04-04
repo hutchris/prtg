@@ -1,23 +1,20 @@
 import os
 import requests
+from datetime import datetime
 from bs4 import BeautifulSoup
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+#class used by prtg_api and children to manage global arrays of all objects
 class global_arrays(object):
 	allprobes = []
 	allgroups = []
 	alldevices = []
 	allsensors = []
 
-class baseconfig(object):
-	def __str__(self):
-		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
-	def __repr__(self):
-		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
-	def set_config(self,host,port,user,passhash,protocol):
-		self.confdata = (host,port,user,passhash,protocol)
+#class used by all prtg_* objects to build urls and query prtg using requests	
+class connection_methods(object):
 	def unpack_config(self,confdata):
 		self.host = confdata[0]
 		self.port = confdata[1]
@@ -28,6 +25,25 @@ class baseconfig(object):
 		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.base_url_no_api = "{protocol}://{host}:{port}/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
+	def get_request(self,url_string,api=True):
+		#global method for api calls. Provides errors for the 401 and 404 responses
+		if api:
+			url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
+		else:
+			url = "{base}{content}&{auth}".format(base=self.base_url_no_api,content=url_string,auth=self.url_auth)
+		req = requests.get(url,verify=False)
+		if req.status_code == 200:
+			return(req)
+		elif req.status_code == 401:
+			raise(self.AuthenticationError("PRTG authentication failed. Check credentials in config file"))
+		elif req.status_code == 404:
+			raise(self.ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
+
+class baseconfig(connection_methods):
+	def __str__(self):
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
+	def __repr__(self):
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
 	def clear_arrays(self):
 		del self.allprobes[:]
 		del self.allgroups[:]
@@ -55,27 +71,18 @@ class baseconfig(object):
 			setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
 		req = self.get_request(url_string=setprop_url)
 		self.name = value
-	def get_property(self,name,raw=False):
+	def get_property(self,name):
 		if self.type != "Channel":
 			getprop_url = "getobjectproperty.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
-			getprop_url2 = "getobjectstatus.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
 		else:
 			getprop_url = "getobjectproperty.htm?id={objid}&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
-			getprop_url2 = "getobjectstatus.htm?id={objid}&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
-		failures = 0
-		for url in [getprop_url,getprop_url2]:
-			req = self.get_request(url_string=url)
-			soup = BeautifulSoup(req.text,'lxml')
-			if soup.result.text not in ["(Property not found)","Not found"]:
-				setattr(self,name,soup.result.text)
-				if raw:
-					return(soup)
-				else:
-					return(soup.result.text)
-			elif failures == 0:
-				failures += 1
-			else:
-				raise(self.ResourceNotFound("No object property of name: {name}".format(name=name)))
+		req = self.get_request(url_string=getprop_url)
+		soup = BeautifulSoup(req.text,'lxml')
+		if soup.result.text != "(Property not found)":
+			setattr(self,name,soup.result.text)
+			return(soup.result.text)
+		else:
+			raise(self.ResourceNotFound("No object property of name: {name}".format(name=name)))
 	def set_interval(self,interval):
 		'''note: you will still need to disable inheritance manually.
 		Valid intervals are (seconds): 30, 60, 300, 600, 900, 1800, 3600, 14400, 21600, 43200, 86400'''
@@ -91,19 +98,6 @@ class baseconfig(object):
 			return(treesoup)
 		else:
 			raise(self.ResourceNotFound("No objects at ID: {id}".format(id=root)))
-	def get_request(self,url_string,api=True):
-		#global method for api calls. Provides errors for the 401 and 404 responses
-		if api:
-			url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
-		else:
-			url = "{base}{content}&{auth}".format(base=self.base_url_no_api,content=url_string,auth=self.url_auth)
-		req = requests.get(url,verify=False)
-		if req.status_code == 200:
-			return(req)
-		elif req.status_code == 401:
-			raise(self.AuthenticationError("PRTG authentication failed. Check credentials in config file"))
-		elif req.status_code == 404:
-			raise(self.ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
 	def rename(self,newname):
 		rename_url = "rename.htm?id={objid}&value={name}".format(objid=self.id,name=newname)
 		req = self.get_request(url_string=rename_url)
@@ -130,11 +124,6 @@ class baseconfig(object):
 		clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
 		req = self.get_request(url_string=clone_url)
 	#define global arrays, inherited to all objects
-	def get_parentdata(self):
-		self.parenttree = []
-		soup = self.get_property(name="probegroupdevice",raw=True)
-		for child in soup.find_all("a"):
-			self.parenttree.append({'name':child.text.strip(),'id':child.get("id")})
 	class AuthenticationError(Exception):
 		pass
 	class ResourceNotFound(Exception):
@@ -166,24 +155,22 @@ class prtg_api(global_arrays,baseconfig):
 		self.probes = []
 		self.groups = []
 		self.devices = []
-		self.type = "Root"
 		#get sensortree from root id downwards
 		self.treesoup = self.get_tree(root=rootid)
-		self.name = self.treesoup.nodes.find("name").text
 		#Finds all the direct child nodes in sensortree and creates python objects, passes each object its xml data
 		for child in self.treesoup.sensortree.nodes.children:
 			if child.name is not None:
 				for childr in child.children:
 					if childr.name == "probenode":
-						probeobj = probe(childr,self.confdata,{'name':self.name,'id':self.id})
+						probeobj = probe(childr,self.confdata)
 						self.allprobes.append(probeobj)
 						self.probes.append(probeobj)
 					elif childr.name == "device":
-						deviceobj = device(childr,self.confdata,{'name':self.name,'id':self.id})
+						deviceobj = device(childr,self.confdata)
 						self.devices.append(deviceobj)
 						self.alldevices.append(deviceobj)
 					elif childr.name == "group":
-						groupobj = group(childr,self.confdata,{'name':self.name,'id':self.id})
+						groupobj = group(childr,self.confdata)
 						self.groups.append(groupobj)
 						self.allgroups.append(groupobj)
 					elif childr.name is not None:
@@ -216,7 +203,7 @@ class prtg_api(global_arrays,baseconfig):
 								if aprobe.id == childr.find("id").string:
 									aprobe.refresh(childr)
 						else:
-							probeobj = probe(childr,self.confdata,{'name':self.name,'id':self.id})
+							probeobj = probe(childr,self.confdata)
 							self.probes.append(probeobj)
 							self.allprobes.append(probeobj)
 						#add all probe ids from the sensortree to this list
@@ -227,7 +214,7 @@ class prtg_api(global_arrays,baseconfig):
 								if agroup.id == childr.find("id").string:
 									agroup.refresh(childr)
 						else:
-							groupobj = group(childr,self.confdata,{'name':self.name,'id':self.id})
+							groupobj = group(childr,self.confdata)
 							self.allgroups.append(groupobj)
 							self.groups.append(groupobj)
 						#add all probe ids from the sensortree to this list
@@ -238,7 +225,7 @@ class prtg_api(global_arrays,baseconfig):
 								if adevice.id == childr.find("id").string:
 									adevice.refresh(childr)
 						else:
-							deviceobj = device(childr,self.confdata,{'name':self.name,'id':self.id})
+							deviceobj = device(childr,self.confdata)
 							self.alldevices.append(devicebj)
 							self.device.append(deviceobj)
 						#add all probe ids from the sensortree to this list
@@ -273,10 +260,9 @@ class prtg_api(global_arrays,baseconfig):
 				return(obj)
 				
 class channel(prtg_api):
-	def __init__(self,channelsoup,sensorid,confdata,parentdata):
+	def __init__(self,channelsoup,sensorid,confdata):
 		self.unpack_config(confdata)
 		self.sensorid = sensorid
-		self.parent = parentdata
 		for child in channelsoup.children:
 			if child.string is None:
 				child.string = ""
@@ -315,17 +301,16 @@ class channel(prtg_api):
 		return("You cannot delete a channel")
 
 class sensor(prtg_api):
-	def __init__(self,sensorsoup,deviceid,confdata,parentdata):
+	def __init__(self,sensorsoup,deviceid,confdata):
 		self.unpack_config(confdata)
-		self.type = "Sensor"
 		for child in sensorsoup.children:
 			if child.string is None:
 				child.string = ""
 			if child.name is not None:
 				setattr(self,child.name,child.string)
-		self.parent = parentdata
 		setattr(self,"attributes",sensorsoup.attrs)
 		self.channels = []
+		self.type = "Sensor"
 		self.deviceid = deviceid
 	def get_channels(self):
 		channel_url = "table.xml?content=channels&output=xml&columns=name,lastvalue_,objid&id={sensorid}".format(sensorid=self.id)
@@ -333,8 +318,7 @@ class sensor(prtg_api):
 		channelsoup = BeautifulSoup(req.text,"lxml")
 		if len(self.channels) == 0:
 			for child in channelsoup.find_all("item"):
-				channelobj = channel(child,self.id,self.confdata,{'name':self.name,'id':self.id})
-				self.channels.append(channelobj)
+				self.channels.append(channel(child,self.id,self.confdata))
 		else:
 			for child in channelsoup.find_all("item"):
 				for achannel in self.channels:
@@ -381,21 +365,20 @@ class sensor(prtg_api):
 		self.filepath = filepath
 
 class device(prtg_api):
-	def __init__(self,devicesoup,confdata,parentdata):
+	def __init__(self,devicesoup,confdata):
 		self.unpack_config(confdata)
-		self.type = "Device"
-		self.parent = parentdata
 		self.sensors = []
 		for child in devicesoup.children:
-			if child.name != "sensor" and child.name is not None:
+			if child.name == "sensor":
+				sensorobj = sensor(child,self.id,self.confdata)
+				self.sensors.append(sensorobj)
+				self.allsensors.append(sensorobj)
+			elif child.name is not None:
 				if child.string is None:
 					child.string = ""
 				setattr(self,child.name,child.string)
-		for child in devicesoup.children:
-			if child.name == "sensor":
-				sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
-				self.sensors.append(sensorobj)
-				self.allsensors.append(sensorobj)
+		setattr(self,"attributes",devicesoup.attrs)
+		self.type = "Device"
 	def refresh(self,devicesoup=None):
 		if devicesoup is None:
 			soup = self.get_tree(root=self.id)
@@ -411,7 +394,7 @@ class device(prtg_api):
 						if asensor.id == child.find("id").string:
 							asensor.refresh(child)
 				else:
-					sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
+					sensorobj = sensor(child,self.id,self.confdata)
 					self.sensors.append(sensorobj)
 					self.allsensors.append(sensorobj)
 				newsensorids.append(child.find("id").string)
@@ -432,28 +415,26 @@ class device(prtg_api):
 		self.host = host
 
 class group(prtg_api):
-	def __init__(self,groupsoup,confdata,parentdata):
+	def __init__(self,groupsoup,confdata):
 		self.unpack_config(confdata)
-		self.parent = parentdata
 		self.groups = []
 		self.devices = []
 		#groupsoup is passed into __init__ method
 		#The children objects are either added to this object as an attribute
 		#or a device/group object is created
 		for child in groupsoup.children:
-			if child.name is not None and child.name not in ["device","group"]:
-				if child.string is None:
-					child.string = ""
-				setattr(self,child.name,child.string)
-		for child in groupsoup.children:
 			if child.name == "device":
-				deviceobj = device(child,self.confdata,{'name':self.name,'id':self.id})
+				deviceobj = device(child,self.confdata)
 				self.devices.append(deviceobj)
 				self.alldevices.append(deviceobj)
 			elif child.name == "group":
-				groupobj = group(child,self.confdata,{'name':self.name,'id':self.id})
+				groupobj = group(child,self.confdata)
 				self.groups.append(groupobj)
-				self.allgroups.append(groupobj)
+				self.allgroups.append(groupobj)				
+			elif child.name is not None:
+				if child.string is None:
+					child.string = ""
+				setattr(self,child.name,child.string)
 		setattr(self,"attributes",groupsoup.attrs)
 		self.type = "Group"
 	def refresh(self,groupsoup=None):
@@ -479,7 +460,7 @@ class group(prtg_api):
 						if adevice.id == child.find("id").string:
 							adevice.refresh(child)
 				else:
-					deviceobj = device(child,self.confdata,{'name':self.name,'id':self.id})
+					deviceobj = device(child,self.confdata)
 					self.devices.append(deviceobj)
 					self.alldevices.append(deviceobj)
 				newdeviceids.append(child.find("id").string)
@@ -489,7 +470,7 @@ class group(prtg_api):
 						if agroup.id == child.find("id").string:
 							agroup.refresh(child)
 				else:
-					groupobj = group(child,self.confdata,{'name':self.name,'id':self.id})
+					groupobj = group(child,self.confdata)
 					self.groups.append(groupobj)
 					self.allgroups.append(groupobj)
 				newgroupids.append(child.find("id").string)
@@ -516,24 +497,23 @@ class group(prtg_api):
 #probe is the same as group so it inherits all methods and attributes except type				
 class probe(group):		
 	type = "Probe"
-		
+	
 class prtg_device(baseconfig):
+	'''Seperate top level object to manage just a device and its sensors instead of
+	downloading details for an entire group'''
 	def __init__(self,host,port,user,passhash,protocol,deviceid):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
 		self.sensors = []
 		soup = self.get_tree(root=deviceid)
-		self.type = "Device"
 		for child in soup.sensortree.nodes.device:
-			if child.name is not None and child.name != "sensor":
+			if child.name == "sensor":
+				sensorobj = sensor(child,self.id,self.confdata)
+				self.sensors.append(sensorobj)
+			elif child.name is not None:
 				if child.string is None:
 					child.string = ""
 				setattr(self,child.name,child.string)
-		for child in soup.sensortree.nodes.device:
-			if child.name == "sensor":
-				sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
-				self.sensors.append(sensorobj)
-		self.get_parentdata()
 	def refresh(self):
 		soup = self.get_tree(root=deviceid)
 		sensorids = []
@@ -546,7 +526,7 @@ class prtg_device(baseconfig):
 						if asensor.id == child.find("id").string:
 							asensor.refresh(child)
 				else:
-					sensorobj = sensor(child,self.id,self.confdata,{'name':self.name,'id':self.id})
+					sensorobj = sensor(child,self.id,self.confdata)
 					self.sensors.append(sensorobj)
 			elif child.name is not None:
 				if child.string is None:
@@ -554,10 +534,11 @@ class prtg_device(baseconfig):
 				setattr(self,child.name,child.string)
 
 class prtg_sensor(baseconfig):
+	'''Seperate top level object to manage just a sensor and its channels instead of
+	downloading details for an entire group'''
 	def __init__(self,host,port,user,passhash,protocol,sensorid):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
-		self.type = "Sensor"
 		self.channels = []
 		soup = self.get_tree(root=sensorid)
 		for child in soup.sensortree.nodes.sensor:
@@ -566,7 +547,6 @@ class prtg_sensor(baseconfig):
 					child.string = ""
 				setattr(self,child.name,child.string)
 		self.get_channels()
-		self.parenttree = get_parentdata()
 	def refresh(self):
 		soup = self.get_tree(root=self.id)
 		for child in soup.sensortree.nodes.sensor.children:
@@ -582,8 +562,7 @@ class prtg_sensor(baseconfig):
 		channelsoup = BeautifulSoup(req.text,"lxml")
 		if len(self.channels) == 0:
 			for child in channelsoup.find_all("item"):
-				channelobj = channel(child,self.id,self.confdata,{'name':self.name,'id':self.id})
-				self.channels.append(channelobj)
+				self.channels.append(channel(child,self.id,self.confdata))
 		else:
 			for child in channelsoup.find_all("item"):
 				for achannel in self.channels:
@@ -614,3 +593,22 @@ class prtg_sensor(baseconfig):
 			for chunk in req:
 				imgfile.write(chunk)
 		self.filepath = filepath
+
+class prtg_data(connection_methods):
+	'''class used for calls to the historic data api.
+	Call the class first using connection params then use
+	methods to get/process data. yyyy-mm-dd-hh-mm-ss'''
+	def __init__(self,host,port,user,passhash,protocol):
+		self.unpack_config(host,port,user,passhash,protocol)
+	def format_date(self,dateobj):
+		'''Pass a datetime object and this will format appropriately
+		for use with the historic data api'''
+		return(dateobj.strftime("%Y-%m-%d-%H-%M-%S"))
+	def get_historic_data(self,objid,startdate,enddate,timeaverage):
+		historic_url = "historicdata.xml?id={id}&avg={avg}&sdate={sdate}&edate={edate}".format(id=objid,avg=timeaverage,sdate=startdate,edate=enddate)
+		req = self.get_request(url_string=historic_url)
+		historic_soup = BeautifulSoup(req.text,'lxml')
+		for item in historic_soup.find_all("item"):
+			
+		
+		
