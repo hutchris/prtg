@@ -1,23 +1,21 @@
 import os
+import csv
 import requests
+from datetime import datetime,timedelta
 from bs4 import BeautifulSoup
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+#class used by prtg_api and children to manage global arrays of all objects
 class global_arrays(object):
 	allprobes = []
 	allgroups = []
 	alldevices = []
 	allsensors = []
 
-class baseconfig(object):
-	def __str__(self):
-		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
-	def __repr__(self):
-		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
-	def set_config(self,host,port,user,passhash,protocol):
-		self.confdata = (host,port,user,passhash,protocol)
+#class used by all prtg_* objects to build urls and query prtg using requests	
+class connection_methods(object):
 	def unpack_config(self,confdata):
 		self.host = confdata[0]
 		self.port = confdata[1]
@@ -28,6 +26,25 @@ class baseconfig(object):
 		self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.base_url_no_api = "{protocol}://{host}:{port}/".format(protocol=self.protocol,host=self.host,port=self.port)
 		self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
+	def get_request(self,url_string,api=True):
+		#global method for api calls. Provides errors for the 401 and 404 responses
+		if api:
+			url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
+		else:
+			url = "{base}{content}&{auth}".format(base=self.base_url_no_api,content=url_string,auth=self.url_auth)
+		req = requests.get(url,verify=False)
+		if req.status_code == 200:
+			return(req)
+		elif req.status_code == 401:
+			raise(self.AuthenticationError("PRTG authentication failed. Check credentials in config file"))
+		elif req.status_code == 404:
+			raise(self.ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
+
+class baseconfig(connection_methods):
+	def __str__(self):
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
+	def __repr__(self):
+		return("<Name: {name}, ID: {id}, Active: {active}>".format(name=self.name,id=self.id,active=self.active))
 	def clear_arrays(self):
 		del self.allprobes[:]
 		del self.allgroups[:]
@@ -82,19 +99,6 @@ class baseconfig(object):
 			return(treesoup)
 		else:
 			raise(self.ResourceNotFound("No objects at ID: {id}".format(id=root)))
-	def get_request(self,url_string,api=True):
-		#global method for api calls. Provides errors for the 401 and 404 responses
-		if api:
-			url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
-		else:
-			url = "{base}{content}&{auth}".format(base=self.base_url_no_api,content=url_string,auth=self.url_auth)
-		req = requests.get(url,verify=False)
-		if req.status_code == 200:
-			return(req)
-		elif req.status_code == 401:
-			raise(self.AuthenticationError("PRTG authentication failed. Check credentials in config file"))
-		elif req.status_code == 404:
-			raise(self.ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
 	def rename(self,newname):
 		rename_url = "rename.htm?id={objid}&value={name}".format(objid=self.id,name=newname)
 		req = self.get_request(url_string=rename_url)
@@ -335,7 +339,7 @@ class sensor(prtg_api):
 			self.get_channels()
 	def set_additional_param(self,parameterstring):
 		self.set_property(name="params",value=parameterstring)
-	def save_graph(self,graphid,filepath,size,hidden_channels=''):
+	def save_graph(self,graphid,filepath,size,hidden_channels='',filetype='svg'):
 		'''
 		Size options: S,M,L
 		'''
@@ -353,8 +357,8 @@ class sensor(prtg_api):
 			font = "13"
 		if hidden_channels:
 			hidden_channels = "&hide={hc}".format(hc=hidden_channels)
-		chart_url = "chart.png?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
-			gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
+		chart_url = "chart.{ft}?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
+			ft=filetype,gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
 		req = self.get_request(url_string=chart_url,api=False)
 		with open(filepath,"wb") as imgfile:
 			for chunk in req:
@@ -494,8 +498,10 @@ class group(prtg_api):
 #probe is the same as group so it inherits all methods and attributes except type				
 class probe(group):		
 	type = "Probe"
-		
+	
 class prtg_device(baseconfig):
+	'''Seperate top level object to manage just a device and its sensors instead of
+	downloading details for an entire group'''
 	def __init__(self,host,port,user,passhash,protocol,deviceid):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
@@ -529,6 +535,8 @@ class prtg_device(baseconfig):
 				setattr(self,child.name,child.string)
 
 class prtg_sensor(baseconfig):
+	'''Seperate top level object to manage just a sensor and its channels instead of
+	downloading details for an entire group'''
 	def __init__(self,host,port,user,passhash,protocol,sensorid):
 		self.confdata = (host,port,user,passhash,protocol)
 		self.unpack_config(self.confdata)
@@ -561,7 +569,7 @@ class prtg_sensor(baseconfig):
 				for achannel in self.channels:
 					if achannel.objid == child.find("objid").string:
 						achannel.refresh(child)
-	def save_graph(self,graphid,filepath,size,hidden_channels=''):
+	def save_graph(self,graphid,filepath,size,hidden_channels='',filetype='svg'):
 		'''
 		Size options: S,M,L
 		'''
@@ -579,10 +587,48 @@ class prtg_sensor(baseconfig):
 			font = "13"
 		if hidden_channels:
 			hidden_channels = "&hide={hc}".format(hc=hidden_channels)
-		chart_url = "chart.png?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
-			gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
+		chart_url = "chart.{ft}?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
+			ft=filetype,gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
 		req = self.get_request(url_string=chart_url,api=False)
 		with open(filepath,"wb") as imgfile:
 			for chunk in req:
 				imgfile.write(chunk)
 		self.filepath = filepath
+
+class prtg_historic_data(connection_methods):
+	'''class used for calls to the historic data api.
+	Call the class first using connection params then use
+	methods to get/process data. yyyy-mm-dd-hh-mm-ss'''
+	def __init__(self,host,port,user,passhash,protocol):
+		self.confdata = (host,port,user,passhash,protocol)
+		self.unpack_config(self.confdata)
+	def format_date(self,dateobj):
+		'''Pass a datetime object and this will format appropriately
+		for use with the historic data api'''
+		return(dateobj.strftime("%Y-%m-%d-%H-%M-%S"))
+	def get_historic_data(self,objid,startdate,enddate,timeaverage):
+		if type(startdate) == datetime:
+			startdate = self.format_date(startdate)
+		if type(enddate) == datetime:
+			enddate = self.format_date(enddate)	
+		historic_url = "historicdata.csv?id={id}&avg={avg}&sdate={sdate}&edate={edate}".format(id=objid,avg=timeaverage,sdate=startdate,edate=enddate)
+		req = self.get_request(url_string=historic_url)
+		csvRaw = req.text
+		csvLines = (csvRaw.split("\n"))[:-2]
+		csvReader = csv.reader(csvLines)
+		data = {}
+		for ind,row in enumerate(csvReader):
+			if ind == 0:
+				headers = row
+				for header in headers:
+					data[header] = []
+			else:
+				for inde,cell in enumerate(row):
+					if headers[inde] == "Date Time":
+						if "-" in cell:
+							cell = cell[:cell.index(" -")]
+						data[headers[inde]].append(datetime.strptime(cell,"%m/%d/%Y %I:%M:%S %p"))
+					else:
+						data[headers[inde]].append(cell)
+		return(data)
+	
