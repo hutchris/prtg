@@ -1,4 +1,5 @@
 import os
+import csv
 import requests
 from datetime import datetime,timedelta
 from bs4 import BeautifulSoup
@@ -338,7 +339,7 @@ class sensor(prtg_api):
 			self.get_channels()
 	def set_additional_param(self,parameterstring):
 		self.set_property(name="params",value=parameterstring)
-	def save_graph(self,graphid,filepath,size,hidden_channels=''):
+	def save_graph(self,graphid,filepath,size,hidden_channels='',filetype='svg'):
 		'''
 		Size options: S,M,L
 		'''
@@ -356,8 +357,8 @@ class sensor(prtg_api):
 			font = "13"
 		if hidden_channels:
 			hidden_channels = "&hide={hc}".format(hc=hidden_channels)
-		chart_url = "chart.png?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
-			gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
+		chart_url = "chart.{ft}?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
+			ft=filetype,gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
 		req = self.get_request(url_string=chart_url,api=False)
 		with open(filepath,"wb") as imgfile:
 			for chunk in req:
@@ -568,7 +569,7 @@ class prtg_sensor(baseconfig):
 				for achannel in self.channels:
 					if achannel.objid == child.find("objid").string:
 						achannel.refresh(child)
-	def save_graph(self,graphid,filepath,size,hidden_channels=''):
+	def save_graph(self,graphid,filepath,size,hidden_channels='',filetype='svg'):
 		'''
 		Size options: S,M,L
 		'''
@@ -586,8 +587,8 @@ class prtg_sensor(baseconfig):
 			font = "13"
 		if hidden_channels:
 			hidden_channels = "&hide={hc}".format(hc=hidden_channels)
-		chart_url = "chart.png?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
-			gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
+		chart_url = "chart.{ft}?type=graph&graphid={gid}&id={sid}&width={w}&height={h}{hc}&plotcolor=%23ffffff&gridcolor=%23ffffff&graphstyling=showLegend%3D%271%27+baseFontSize%3D%27{f}%27".format(
+			ft=filetype,gid=graphid,sid=self.id,w=width,h=height,hc=hidden_channels,f=font)
 		req = self.get_request(url_string=chart_url,api=False)
 		with open(filepath,"wb") as imgfile:
 			for chunk in req:
@@ -599,30 +600,35 @@ class prtg_historic_data(connection_methods):
 	Call the class first using connection params then use
 	methods to get/process data. yyyy-mm-dd-hh-mm-ss'''
 	def __init__(self,host,port,user,passhash,protocol):
-		self.unpack_config(host,port,user,passhash,protocol)
+		self.confdata = (host,port,user,passhash,protocol)
+		self.unpack_config(self.confdata)
 	def format_date(self,dateobj):
 		'''Pass a datetime object and this will format appropriately
 		for use with the historic data api'''
 		return(dateobj.strftime("%Y-%m-%d-%H-%M-%S"))
 	def get_historic_data(self,objid,startdate,enddate,timeaverage):
-		historic_url = "historicdata.xml?id={id}&avg={avg}&sdate={sdate}&edate={edate}".format(id=objid,avg=timeaverage,sdate=startdate,edate=enddate)
+		if type(startdate) == datetime:
+			startdate = self.format_date(startdate)
+		if type(enddate) == datetime:
+			enddate = self.format_date(enddate)	
+		historic_url = "historicdata.csv?id={id}&avg={avg}&sdate={sdate}&edate={edate}".format(id=objid,avg=timeaverage,sdate=startdate,edate=enddate)
 		req = self.get_request(url_string=historic_url)
-		historic_soup = BeautifulSoup(req.text,'lxml')
-		data = {'datetimes':[]}
-		for item in historic_soup.find_all("item"):
-			if item.name is not None:
-				for child in item.children:
-					if child.name == 'datetime':
-						dateobj = datetime.strptime(child.text[:child.text.index(" -")],"%m/%d/%Y %H:%M:%S %p")
-						dateobj = dateobj + timedelta(seconds=int(timeaverage)/2)
-						data['datetimes'].append(dateobj)
-					elif child.has_attr('channel') and child.name == 'value':
-						if child.attrs['channel'] not in data.keys():
-							data[child.attrs['channel']]['unit'] = [(child.text).split(" ")[1]]
-							data[child.attrs['channel']]['values'] = [float((child.text).split(" ")[0])]
-						else:
-							data[child.attrs['channel']].append(float((child.text).split(" ")[0]))
-
-			 
-		
-		
+		csvRaw = req.text
+		csvLines = (csvRaw.split("\n"))[:-2]
+		csvReader = csv.reader(csvLines)
+		data = {}
+		for ind,row in enumerate(csvReader):
+			if ind == 0:
+				headers = row
+				for header in headers:
+					data[header] = []
+			else:
+				for inde,cell in enumerate(row):
+					if headers[inde] == "Date Time":
+						if "-" in cell:
+							cell = cell[:cell.index(" -")]
+						data[headers[inde]].append(datetime.strptime(cell,"%m/%d/%Y %I:%M:%S %p"))
+					else:
+						data[headers[inde]].append(cell)
+		return(data)
+	
