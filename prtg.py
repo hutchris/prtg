@@ -270,6 +270,9 @@ class channel(prtg_api):
 			if child.name is not None:
 				setattr(self,child.name,child.string)
 		self.id = self.objid
+		if hasattr(self,'lastvalue'):
+			self.lastvalue_int = int(self.lastvalue.split(" ")[0])
+			self.unit = self.lastvalue.split(" ")[1]
 		self.type = "Channel"
 	def __str__(self):
 		return("<Name: {name}, ID: {id}>".format(name=self.name,id=self.id))
