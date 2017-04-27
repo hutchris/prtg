@@ -271,7 +271,12 @@ class channel(prtg_api):
 				setattr(self,child.name,child.string)
 		self.id = self.objid
 		if hasattr(self,'lastvalue'):
-			self.lastvalue_int = int(self.lastvalue.split(" ")[0])
+			try:
+				self.lastvalue_int = int(self.lastvalue.split(" ")[0].replace(",",""))
+				self.lastvalue_float = float(self.lastvalue_int)
+			except ValueError:
+				self.lastvalue_float = float(self.lastvalue.split(" ")[0].replace(",",""))
+				self.lastvalue_int = int(self.lastvalue_float)
 			self.unit = self.lastvalue.split(" ")[1]
 		self.type = "Channel"
 	def __str__(self):
