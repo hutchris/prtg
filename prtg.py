@@ -387,7 +387,7 @@ class device(prtg_api):
                     child.string = ""
                 setattr(self,child.name,child.string)
         #Adds sensors to a dictionary based on their status
-        self.sensors_by_status = {}
+        self.sensors_by_status = {"Up":[],"Down":[],"Warning":[],"Paused":[]}
         for asensor in self.sensors:
             if asensor.status in self.sensors_by_status.keys():
                 self.sensors_by_status[asensor.status].append(asensor)
@@ -530,7 +530,7 @@ class prtg_device(baseconfig):
                 if child.string is None:
                     child.string = ""
                 setattr(self,child.name,child.string)
-        self.sensors_by_status = {}
+        self.sensors_by_status = {"Up":[],"Down":[],"Warning":[],"Paused":[]}
         for asensor in self.sensors:
             if asensor.status in self.sensors_by_status.keys():
                 self.sensors_by_status[asensor.status].append(asensor)
