@@ -54,7 +54,7 @@ class baseconfig(connection_methods):
         if self.type == "Root":
             return("You cannot delete the root object.")
         else:
-            delete_url = "deleteobject.htm?id={objid}&approve=1}".format(objid=self.id)
+            delete_url = "deleteobject.htm?id={objid}&approve=1".format(objid=self.id)
             if confirm:
                 response = ""
                 while response.upper() not in ["Y","N"]:
@@ -121,6 +121,15 @@ class baseconfig(connection_methods):
         self.status = "?"
         self.active = "true"
         self.status_raw = "?"
+    def acknowledge(self, duration=0,message=""):
+    	acknowledge_url = "acknowledgealarm.htm?id={objid}&ackmsg={string}".format(objid=self.id, string=message)
+    	req = self.get_request(url_string=acknowledge_url)
+    	self.status = "Acnowledge"
+    	#self.active = "false"
+    	#self.status_raw = "7"
+    def get_status(self, name=""):
+    	status_url= "getobjectstatus.htm?id={objid}&name={name}&show=text".format(objid=self.id, name=name)
+    	req = self.get_request(url_string=status_url)
     def clone(self,newname,newplaceid):
         clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
         req = self.get_request(url_string=clone_url)
@@ -615,6 +624,7 @@ class prtg_sensor(baseconfig):
             for chunk in req:
                 imgfile.write(chunk)
         self.filepath = filepath
+
 
 class prtg_historic_data(connection_methods):
     '''class used for calls to the historic data api.
