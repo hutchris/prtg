@@ -52,30 +52,19 @@ channel = sensorobject.channels[0]
 
 
 Current methods and parameters (* = required) on all objects include:
-- rename
-- pause (pause and resume on a channel will change the parent sensor)
- - duration=0
- - message=''
-- resume
-- clone
- - newname=''*
- - newplaceid=''*
-- delete (you can't delete the root object or channels)
- - confirm=True
-- refresh
-- set_property
- - name*
- - value*
-- get_property
- - name*
-- set_additional_param (for custom script sensors)
- - param*
-- set_interval
- - interval*
-- set_host (ip address or hostname)
- - host*
-- search_byid
- - id
+- rename()
+- pause(duration=0,message='') (pause and resume on a channel will change the parent sensor)  
+- resume()
+- clone(newname=''*,newplaceid=''*)
+- delete(confirm=True) (you can't delete the root object or channels)
+- refresh()
+- set_property(name*,value*)
+- get_property(name*)
+- set_additional_param(param*) (for custom script sensors)
+- set_interval(interval*)
+- set_host(host*) (ip address or hostname)
+- search_byid(id)
+
 To come:
 - move
 
