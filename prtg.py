@@ -121,15 +121,13 @@ class baseconfig(connection_methods):
         self.status = "?"
         self.active = "true"
         self.status_raw = "?"
-    def acknowledge(self, duration=0,message=""):
-    	acknowledge_url = "acknowledgealarm.htm?id={objid}&ackmsg={string}".format(objid=self.id, string=message)
-    	req = self.get_request(url_string=acknowledge_url)
-    	self.status = "Acnowledge"
-    	#self.active = "false"
-    	#self.status_raw = "7"
-    def get_status(self, name=""):
-    	status_url= "getobjectstatus.htm?id={objid}&name={name}&show=text".format(objid=self.id, name=name)
-    	req = self.get_request(url_string=status_url)
+    def get_status(self, name="status"):
+        status_url= "getobjectstatus.htm?id={objid}&name={name}&show=text".format(objid=self.id, name=name)
+        req = self.get_request(url_string=status_url)
+        soup = BeautifulSoup(req.text,'lxml')
+        status = soup.result.text.strip()
+        self.status = status
+        return(status)
     def clone(self,newname,newplaceid):
         clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
         req = self.get_request(url_string=clone_url)
@@ -356,6 +354,10 @@ class sensor(prtg_api):
             self.get_channels()
     def set_additional_param(self,parameterstring):
         self.set_property(name="params",value=parameterstring)
+    def acknowledge(self,message=""):
+        acknowledge_url = "acknowledgealarm.htm?id={objid}&ackmsg={string}".format(objid=self.id,string=message)
+        req = self.get_request(url_string=acknowledge_url)
+        self.get_status()
     def save_graph(self,graphid,filepath,size,hidden_channels='',filetype='svg'):
         '''
         Size options: S,M,L
@@ -599,6 +601,9 @@ class prtg_sensor(baseconfig):
                 for achannel in self.channels:
                     if achannel.objid == child.find("objid").string:
                         achannel.refresh(child)
+    def acknowledge(self,message=""):
+        acknowledge_url = "acknowledgealarm.htm?id={objid}&ackmsg={string}".format(objid=self.id,string=message)
+        req = self.get_request(url_string=acknowledge_url)
     def save_graph(self,graphid,filepath,size,hidden_channels='',filetype='svg'):
         '''
         Size options: S,M,L
