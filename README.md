@@ -64,6 +64,7 @@ Current methods and parameters (* = required) on all objects include:
 - set_interval(interval*)
 - set_host(host*) (ip address or hostname)
 - search_byid(id)
+- add_tags(['tag1','tag2']*,clear_old=False)
 
 To come:
 - move
