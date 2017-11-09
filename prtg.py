@@ -154,9 +154,9 @@ class prtg_api(global_arrays,baseconfig):
     passhash = '0000000'
     protocol = 'https'
     rootid = '53'
-    prtg = prtg_api(host,port,user,passhash,protocol,rootid)
+    prtg = prtg_api(host,user,passhash,protocol,port,rootid)
     '''
-    def __init__(self,host,port,user,passhash,protocol,rootid=0):
+    def __init__(self,host,user,passhash,protocol='https',port='443',rootid=0):
         self.confdata = (host,port,user,passhash,protocol)
         self.unpack_config(self.confdata)
         self.clear_arrays()
