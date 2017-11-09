@@ -154,9 +154,9 @@ class prtg_api(global_arrays,baseconfig):
     passhash = '0000000'
     protocol = 'https'
     rootid = '53'
-    prtg = prtg_api(host,user,passhash,protocol,port,rootid)
+    prtg = prtg_api(host,user,passhash,rootid,protocol,port)
     '''
-    def __init__(self,host,user,passhash,protocol='https',port='443',rootid=0):
+    def __init__(self,host,user,passhash,rootid=0,protocol='https',port='443'):
         self.confdata = (host,port,user,passhash,protocol)
         self.unpack_config(self.confdata)
         self.clear_arrays()
@@ -278,13 +278,14 @@ class channel(prtg_api):
                 setattr(self,child.name,child.string)
         self.id = self.objid
         if hasattr(self,'lastvalue'):
-            try:
-                self.lastvalue_int = int(self.lastvalue.split(" ")[0].replace(",",""))
-                self.lastvalue_float = float(self.lastvalue_int)
-            except ValueError:
-                self.lastvalue_float = float(self.lastvalue.split(" ")[0].replace(",",""))
-                self.lastvalue_int = int(self.lastvalue_float)
-            self.unit = self.lastvalue.split(" ")[1]
+            if self.lastvalue != "":
+                try:
+                    self.lastvalue_int = int(self.lastvalue.split(" ")[0].replace(",",""))
+                    self.lastvalue_float = float(self.lastvalue_int)
+                except ValueError:
+                    self.lastvalue_float = float(self.lastvalue.split(" ")[0].replace(",",""))
+                    self.lastvalue_int = int(self.lastvalue_float)
+                self.unit = self.lastvalue.split(" ")[1]
         self.type = "Channel"
     def __str__(self):
         return("<Name: {name}, ID: {id}>".format(name=self.name,id=self.id))
@@ -528,7 +529,7 @@ class probe(group):
 class prtg_device(baseconfig):
     '''Seperate top level object to manage just a device and its sensors instead of
     downloading details for an entire group'''
-    def __init__(self,host,port,user,passhash,protocol,deviceid):
+    def __init__(self,host,user,passhash,deviceid,protocol='https',port='443'):
         self.confdata = (host,port,user,passhash,protocol)
         self.unpack_config(self.confdata)
         self.sensors = []
@@ -569,7 +570,7 @@ class prtg_device(baseconfig):
 class prtg_sensor(baseconfig):
     '''Seperate top level object to manage just a sensor and its channels instead of
     downloading details for an entire group'''
-    def __init__(self,host,port,user,passhash,protocol,sensorid):
+    def __init__(self,host,user,passhash,sensorid,protocol='https',port='443'):
         self.confdata = (host,port,user,passhash,protocol)
         self.unpack_config(self.confdata)
         self.channels = []
