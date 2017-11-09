@@ -131,6 +131,15 @@ class baseconfig(connection_methods):
     def clone(self,newname,newplaceid):
         clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
         req = self.get_request(url_string=clone_url)
+    def add_tags(self,tags,clear_old=False):
+        if not isinstance(tags,list):
+            raise(Exception("Needs tags as type: list"))
+        if clear_old:
+            old_tags = []
+        else:
+            old_tags = self.get_property('tags').split(' ')
+        new_tags = " ".join(old_tags+tags)
+        self.set_property(name='tags',value=new_tags)
     #define global arrays, inherited to all objects
     class AuthenticationError(Exception):
         pass
