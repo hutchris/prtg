@@ -10,10 +10,10 @@ Tested only on Python 3.5.2 so far. Does work with python 2.7 but not extensivel
 
 This is a Python module to facilitate in managing PRTG servers from CLI or for automating changes. It is really useful for scripting changes to prtg objects.
 
-The prtg_api no longer uses a config file. Instead you need to enter your PRTG parameters when initiating the prtg_api class. This change was to allow this to be used in a more flexible way, or to manage multiple PRTG instances, you can still set up a local config file for your parameters if you wish. The positional parameters for initiating the prtg_api class are:
+The prtg_api no longer uses a config file. Instead you need to enter your PRTG parameters when initiating the prtg_api class. This change was to allow this to be used in a more flexible way, or to manage multiple PRTG instances, you can still set up a local config file for your parameters if you wish. The parameters for initiating the prtg_api class are:
 
 ```
-prtg_api(host,port,user,passhash,protocol,rootid=0)
+prtg_api(host,user,passhash,protocol='https',port='443',rootid=0)
 ```
 
 Upon initialisation the entire device tree is downloaded and each probe, group, device, sensor and channel is provided as a modifiable object. From the main object (called prtg in example) you can access all objects in the tree using the prtg.allprobes, prtg.allgroups, prtg.alldevices and prtg.allsensors attributes. The channels are not available by default, you must run sensor.get_channels() to the get the child channels of that sensor.
@@ -25,7 +25,7 @@ When you are accessing an object further down the tree you only have access to t
 ```
 from prtg import prtg_api
 
-prtg = prtg_api('192.168.1.1','80','prtgadmin','0000000000','http')
+prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
 
 prtg.allgroups[3].devices
 ```
@@ -35,7 +35,7 @@ Probe and group objects can have groups and devices as children, device objects 
 ```
 from prtg import prtg_api
 
-prtg = prtg_api('192.168.1.1','80','prtgadmin','0000000000','http')
+prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
 
 probeobject = prtg.allprobes[0]
 groups = probeobject.groups
@@ -75,7 +75,7 @@ The set_property method is very powerful and flexible. You can change anything f
 ```
 from prtg import prtg_api
 
-prtg = prtg_api('192.168.1.1','80','prtgadmin','0000000000','http')
+prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
 prtg.get_property(name='location')
 #returns the location and sets prtg.location to the result.
 
@@ -90,7 +90,7 @@ example usage:
 import time
 from prtg import prtg_api
 
-prtg = prtg_api('192.168.1.1','80','prtgadmin','0000000000','http')
+prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
 
 for device in prtg.alldevices:
   if device.id == "1234":
