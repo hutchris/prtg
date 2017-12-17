@@ -287,7 +287,7 @@ class channel(prtg_api):
                 setattr(self,child.name,child.string)
         self.id = self.objid
         if hasattr(self,'lastvalue'):
-            if self.lastvalue != "":
+            if self.lastvalue.replace(".","").isdigit():
                 try:
                     self.lastvalue_int = int(self.lastvalue.split(" ")[0].replace(",",""))
                     self.lastvalue_float = float(self.lastvalue_int)
