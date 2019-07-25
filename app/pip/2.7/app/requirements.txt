@@ -1,0 +1,5 @@
+bs4
+click
+future
+lxml
+requests

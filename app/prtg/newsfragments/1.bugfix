@@ -1,0 +1,2 @@
+Ran flake8, bandit, pyspelling, pylint and isort to find a number of bugs
+(undefined variables mainly).

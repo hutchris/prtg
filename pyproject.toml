@@ -1,0 +1,4 @@
+[tool.towncrier]
+    package = "prtg"
+    package_dir = "app"
+    filename = "NEWS.rst"
