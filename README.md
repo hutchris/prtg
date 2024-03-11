@@ -13,7 +13,7 @@ This is a Python module to facilitate in managing PRTG servers from CLI or for a
 The prtg_api no longer uses a config file. Instead you need to enter your PRTG parameters when initiating the prtg_api class. This change was to allow this to be used in a more flexible way, or to manage multiple PRTG instances, you can still set up a local config file for your parameters if you wish. The parameters for initiating the prtg_api class are:
 
 ```
-prtg_api(host,user,passhash,protocol='https',port='443',rootid=0)
+prtg_api(host,user=None,passhash=None,apikey=None,protocol='https',port='443',rootid=0)
 ```
 
 Upon initialisation the entire device tree is downloaded and each probe, group, device, sensor and channel is provided as a modifiable object. From the main object (called prtg in example) you can access all objects in the tree using the prtg.allprobes, prtg.allgroups, prtg.alldevices and prtg.allsensors attributes. The channels are not available by default, you must run sensor.get_channels() to the get the child channels of that sensor.
@@ -26,6 +26,8 @@ When you are accessing an object further down the tree you only have access to t
 from prtg import prtg_api
 
 prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
+#or with apikey
+prtg = prtg_api('192.168.1.1',apikey='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA======')
 
 prtg.allgroups[3].devices
 ```
@@ -98,15 +100,14 @@ for device in prtg.alldevices:
     deviceobj = device
 
 deviceobj.pause()
-deviceobj.clone(newname="cloned device",newplaceid="2468")
+newid = deviceobj.clone(newname="cloned device",newplaceid="2468")
 
-time.sleep(10)
+time.sleep(3)
 
 prtg.refresh()
 
-for device in prtg.alldevices:
-  if device.name = "cloned device":
-    device.resume()
+newdevice = prtg.search_byid(newid)
+newdevice.resume()
 
 ```
 
@@ -114,15 +115,18 @@ The prtg_api class can be used with the root id set as the root group, a probe, 
 
 ```
 host = '192.168.1.1'
-port = '80'
 user = 'prtgadmin'
 passhash = '0000000'
-protocol = 'http'
 deviceid = '2025'
+apikey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA======'
 
-device = prtg_device(host,port,user,passhash,protocol,deviceid)
+device = prtg_device(host,user=user,passhash=passhash,deviceid=deviceid)
+#or with API Key
+device = prtg_device(host,apikey=apikey,deviceid=deviceid)
 
 sensorid = '2123'
 
-sensor = prtg_sensor(host,port,user,passhash,protocol,sensorid)
+sensor = prtg_device(host,user=user,passhash=passhash,sensorid=sensorid)
+#or with API Key
+sensor = prtg_device(host,apikey=apikey,sensorid=sensorid)
 ```
