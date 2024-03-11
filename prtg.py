@@ -1,9 +1,12 @@
 import os
 import csv
 import requests
+import warnings
 from datetime import datetime,timedelta
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup,XMLParsedAsHTMLWarning
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -22,10 +25,19 @@ class connection_methods(object):
         self.user = confdata[2]
         self.passhash = confdata[3]
         self.protocol = confdata[4]
+        self.apikey = confdata[5]
         self.confdata = confdata
         self.base_url = "{protocol}://{host}:{port}/api/".format(protocol=self.protocol,host=self.host,port=self.port)
         self.base_url_no_api = "{protocol}://{host}:{port}/".format(protocol=self.protocol,host=self.host,port=self.port)
-        self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
+        if self.user is None and self.passhash is None and self.apikey is None:
+            raise(self.AuthenticationError("Please supply username & passhash or api key"))
+        elif self.apikey is None:
+            if self.user is None or self.passhash is None:
+                raise(self.AuthenticationError("Please supply both username & passhash"))
+        if self.apikey is not None:
+            self.url_auth = "apitoken={apitoken}".format(apitoken=self.apikey)
+        else:
+            self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
     def get_request(self,url_string,api=True):
         #global method for api calls. Provides errors for the 401 and 404 responses
         if api:
@@ -33,7 +45,7 @@ class connection_methods(object):
         else:
             url = "{base}{content}&{auth}".format(base=self.base_url_no_api,content=url_string,auth=self.url_auth)
         req = requests.get(url,verify=False)
-        if req.status_code == 200:
+        if req.status_code == 200 or req.status_code == 302:
             return(req)
         elif req.status_code == 401:
             raise(self.AuthenticationError("PRTG authentication failed. Check credentials in config file"))
@@ -131,6 +143,9 @@ class baseconfig(connection_methods):
     def clone(self,newname,newplaceid):
         clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
         req = self.get_request(url_string=clone_url)
+        new_url = req.history[-1].url
+        new_id = new_url.split('=')[-1]
+        return(new_id)
     def add_tags(self,tags,clear_old=False):
         if not isinstance(tags,list):
             raise(Exception("Needs tags as type: list"))
@@ -165,8 +180,8 @@ class prtg_api(global_arrays,baseconfig):
     rootid = '53'
     prtg = prtg_api(host,user,passhash,rootid,protocol,port)
     '''
-    def __init__(self,host,user,passhash,rootid=0,protocol='https',port='443'):
-        self.confdata = (host,port,user,passhash,protocol)
+    def __init__(self,host,user=None,passhash=None,apikey=None,rootid=0,protocol='https',port='443'):
+        self.confdata = (host,port,user,passhash,protocol,apikey)
         self.unpack_config(self.confdata)
         self.clear_arrays()
         self.probes = []
@@ -538,8 +553,8 @@ class probe(group):
 class prtg_device(baseconfig):
     '''Seperate top level object to manage just a device and its sensors instead of
     downloading details for an entire group'''
-    def __init__(self,host,user,passhash,deviceid,protocol='https',port='443'):
-        self.confdata = (host,port,user,passhash,protocol)
+    def __init__(self,host,user=None,passhash=None,apikey=None,deviceid=0,protocol='https',port='443'):
+        self.confdata = (host,port,user,passhash,protocol,apikey)
         self.unpack_config(self.confdata)
         self.sensors = []
         soup = self.get_tree(root=deviceid)
@@ -579,8 +594,8 @@ class prtg_device(baseconfig):
 class prtg_sensor(baseconfig):
     '''Seperate top level object to manage just a sensor and its channels instead of
     downloading details for an entire group'''
-    def __init__(self,host,user,passhash,sensorid,protocol='https',port='443'):
-        self.confdata = (host,port,user,passhash,protocol)
+    def __init__(self,host,user=None,passhash=None,apikey=None,sensorid=0,protocol='https',port='443'):
+        self.confdata = (host,port,user,passhash,protocol,apikey)
         self.unpack_config(self.confdata)
         self.channels = []
         soup = self.get_tree(root=sensorid)
@@ -645,8 +660,8 @@ class prtg_historic_data(connection_methods):
     '''class used for calls to the historic data api.
     Call the class first using connection params then use
     methods to get/process data. yyyy-mm-dd-hh-mm-ss'''
-    def __init__(self,host,port,user,passhash,protocol):
-        self.confdata = (host,port,user,passhash,protocol)
+    def __init__(self,host,user=None,passhash=None,apikey=None,port='443',protocol='https'):
+        self.confdata = (host,port,user,passhash,protocol,apikey)
         self.unpack_config(self.confdata)
     def format_date(self,dateobj):
         '''Pass a datetime object and this will format appropriately
