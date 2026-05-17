@@ -2,6 +2,7 @@ import os
 import csv
 import requests
 import warnings
+import json
 from datetime import datetime,timedelta
 from bs4 import BeautifulSoup,XMLParsedAsHTMLWarning
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -16,6 +17,7 @@ class global_arrays(object):
     allgroups = []
     alldevices = []
     allsensors = []
+
 
 #class used by all prtg_* objects to build urls and query prtg using requests   
 class connection_methods(object):
@@ -39,7 +41,7 @@ class connection_methods(object):
         else:
             self.url_auth = "username={username}&passhash={passhash}".format(username=self.user,passhash=self.passhash)
     def get_request(self,url_string,api=True):
-        #global method for api calls. Provides errors for the 401 and 404 responses
+        #global method for api calls. Provides errors for the 400, 401 and 404 responses
         if api:
             url = "{base}{content}&{auth}".format(base=self.base_url,content=url_string,auth=self.url_auth)
         else:
@@ -50,7 +52,12 @@ class connection_methods(object):
         elif req.status_code == 401:
             raise(self.AuthenticationError("PRTG authentication failed. Check credentials in config file"))
         elif req.status_code == 404:
-            raise(self.ResourceNotFound("No resource at URL used: {0}".format(tree_url)))
+            raise(self.ResourceNotFound("No resource at URL used: {0}".format(url_string)))
+        elif req.status_code == 400:
+            raise(self.MalformedRequest("Request was rejected by prtg. {0}".format(url_string)))
+        else:
+            raise(Exception("Unexpected requests status code: {sc}. \nReturned error: {er}".format(sc=req.status_code,er=req.text)))
+
 
 class baseconfig(connection_methods):
     def __str__(self):
@@ -81,14 +88,14 @@ class baseconfig(connection_methods):
         if self.type != "Channel":
             setprop_url = "setobjectproperty.htm?id={objid}&name={propname}&value={propval}".format(objid=self.id,propname=name,propval=value)
         else:
-            setprop_url = "setobjectproperty.htm?id={objid}&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
+            setprop_url = "setobjectproperty.htm?id={objid}&subtype=channel&subid={subid}&name={propname}&value={propval}".format(objid=self.sensorid,subid=self.objid,propname=name,propval=value)
         req = self.get_request(url_string=setprop_url)
         setattr(self,name,value)
     def get_property(self,name):
         if self.type != "Channel":
             getprop_url = "getobjectproperty.htm?id={objid}&name={propname}&show=text".format(objid=self.id,propname=name)
         else:
-            getprop_url = "getobjectproperty.htm?id={objid}&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
+            getprop_url = "getobjectproperty.htm?id={objid}&subtype=channel&subid={subid}&name={propname}".format(objid=self.sensorid,subid=self.objid,propname=name)
         req = self.get_request(url_string=getprop_url)
         soup = BeautifulSoup(req.text,'lxml')
         if soup.result.text != "(Property not found)":
@@ -143,9 +150,12 @@ class baseconfig(connection_methods):
     def clone(self,newname,newplaceid):
         clone_url = "duplicateobject.htm?id={objid}&name={name}&targetid={newparent}".format(objid=self.id,name=newname,newparent=newplaceid)
         req = self.get_request(url_string=clone_url)
-        new_url = req.history[-1].url
-        new_id = new_url.split('=')[-1]
-        return(new_id)
+        if req is None:
+            return(None)
+        else:
+            new_url = req.history[-1].url
+            new_id = new_url.split('=')[-1]
+            return(new_id)
     def add_tags(self,tags,clear_old=False):
         if not isinstance(tags,list):
             raise(Exception("Needs tags as type: list"))
@@ -160,7 +170,10 @@ class baseconfig(connection_methods):
         pass
     class ResourceNotFound(Exception):
         pass
-        
+    class MalformedRequest(Exception):
+        pass
+
+
 class prtg_api(global_arrays,baseconfig):
     '''
     Parameters:
@@ -258,8 +271,8 @@ class prtg_api(global_arrays,baseconfig):
                                     adevice.refresh(childr)
                         else:
                             deviceobj = device(childr,self.confdata)
-                            self.alldevices.append(devicebj)
-                            self.device.append(deviceobj)
+                            self.alldevices.append(deviceobj)
+                            self.devices.append(deviceobj)
                         #add all probe ids from the sensortree to this list
                         newdeviceids.append(childr.find("id").string)
                     elif childr.name is not None:
@@ -290,7 +303,8 @@ class prtg_api(global_arrays,baseconfig):
         for obj in self.allprobes + self.allgroups + self.alldevices + self.allsensors:
             if obj.id == id:
                 return(obj)
-                
+
+
 class channel(prtg_api):
     def __init__(self,channelsoup,sensorid,confdata):
         self.unpack_config(confdata)
@@ -340,6 +354,7 @@ class channel(prtg_api):
         self.id = self.objid
     def delete(self):
         return("You cannot delete a channel")
+
 
 class sensor(prtg_api):
     def __init__(self,sensorsoup,deviceid,confdata):
@@ -408,6 +423,11 @@ class sensor(prtg_api):
             for chunk in req:
                 imgfile.write(chunk)
         self.filepath = filepath
+    def get_details(self):
+        details_url = "getsensordetails.json?id={id}".format(id=self.id)
+        req = self.get_request(url_string=details_url)
+        self.details = json.loads(req.text)['sensordata']
+
 
 class device(prtg_api):
     def __init__(self,devicesoup,confdata):
@@ -465,6 +485,7 @@ class device(prtg_api):
     def set_host(self,host):
         self.set_property(name="host",value=host)
         self.host = host
+
 
 class group(prtg_api):
     def __init__(self,groupsoup,confdata):
@@ -545,11 +566,13 @@ class group(prtg_api):
                 self.groups.remove(grouptoremove)
                 self.allgroups.remove(grouptoremove)
         setattr(self,"attributes",groupsoup.attrs)
-            
+
+
 #probe is the same as group so it inherits all methods and attributes except type               
 class probe(group):     
     type = "Probe"
-    
+
+
 class prtg_device(baseconfig):
     '''Seperate top level object to manage just a device and its sensors instead of
     downloading details for an entire group'''
@@ -590,6 +613,7 @@ class prtg_device(baseconfig):
                 if child.string is None:
                     child.string = ""
                 setattr(self,child.name,child.string)
+
 
 class prtg_sensor(baseconfig):
     '''Seperate top level object to manage just a sensor and its channels instead of
@@ -654,6 +678,10 @@ class prtg_sensor(baseconfig):
             for chunk in req:
                 imgfile.write(chunk)
         self.filepath = filepath
+    def get_details(self):
+        details_url = "getsensordetails.json?id={id}".format(id=self.id)
+        req = self.get_request(url_string=details_url)
+        self.details = json.loads(req.text)['sensordata']
 
 
 class prtg_historic_data(connection_methods):
@@ -692,4 +720,3 @@ class prtg_historic_data(connection_methods):
                     else:
                         data[headers[inde]].append(cell)
         return(data)
-    
