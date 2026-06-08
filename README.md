@@ -1,43 +1,72 @@
 # prtg
-Python module to manage PRTG servers
 
-Prerequisites:
-- bs4 (BeautifulSoup)
-- requests
-- lxml
+Python module to manage PRTG servers.
 
-Tested only on Python 3.5.2 so far. Does work with python 2.7 but not extensively tested. 
+## Prerequisites
 
-This is a Python module to facilitate in managing PRTG servers from CLI or for automating changes. It is really useful for scripting changes to prtg objects.
+- Python 3.7+
+- `requests`
+- `beautifulsoup4`
+- `lxml`
+- `urllib3`
 
-The prtg_api no longer uses a config file. Instead you need to enter your PRTG parameters when initiating the prtg_api class. This change was to allow this to be used in a more flexible way, or to manage multiple PRTG instances, you can still set up a local config file for your parameters if you wish. The parameters for initiating the prtg_api class are:
-
-```
-prtg_api(host,user=None,passhash=None,apikey=None,protocol='https',port='443',rootid=0)
-```
-
-Upon initialisation the entire device tree is downloaded and each probe, group, device, sensor and channel is provided as a modifiable object. From the main object (called prtg in example) you can access all objects in the tree using the prtg.allprobes, prtg.allgroups, prtg.alldevices and prtg.allsensors attributes. The channels are not available by default, you must run sensor.get_channels() to the get the child channels of that sensor.
-
-You can also set the root of your sensor tree as a group that is not the root of PRTG. This was added to allow a partial sensortree to be downloaded where your PRTG server may have many objects or to provide access to a user with restricted permissions.
-
-When you are accessing an object further down the tree you only have access to the direct children of that object. This for example will show the devices that are in the 4th group of the allgroups array:
+Install with:
 
 ```
-from prtg import prtg_api
+pip install -r requirements.txt
+```
 
-prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
-#or with apikey
-prtg = prtg_api('192.168.1.1',apikey='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA======')
+## Overview
+
+This is a Python module to facilitate managing PRTG servers from the CLI or for automating changes. It's useful for scripting changes to PRTG objects.
+
+The module no longer uses a config file. Instead you supply PRTG connection parameters when initialising the `PrtgApi` class. This lets you manage multiple PRTG instances from one script, or wrap the parameters in your own config loader if you prefer. The signature is:
+
+```python
+PrtgApi(
+    host,
+    user=None,
+    passhash=None,
+    apikey=None,
+    rootid=0,
+    protocol='https',
+    port='443',
+    verify_ssl=False,
+    timeout=30.0,
+)
+```
+
+Parameters:
+
+- `host` — PRTG hostname or IP
+- `user`, `passhash` — credentials from PRTG webgui > Settings > Account Settings. Either supply both, or supply `apikey` instead
+- `apikey` — PRTG API token (preferred over user/passhash where available)
+- `rootid` — ID of the group/probe that contains all the objects you want to manage. Defaults to 0 (the entire sensortree)
+- `protocol` — `'http'` or `'https'`
+- `port` — TCP port as a string
+- `verify_ssl` — verify TLS certificates. Defaults to `False` (matches the original module). Set to `True` to opt in to verification.
+- `timeout` — per-request timeout in seconds. Defaults to 30
+
+Upon initialisation the entire sensortree (or the subtree rooted at `rootid`) is downloaded and each probe, group, device, sensor and channel is provided as a modifiable Python object. From the main object (called `prtg` in the examples below) you can access all objects in the tree via `prtg.allprobes`, `prtg.allgroups`, `prtg.alldevices`, and `prtg.allsensors`. Channels are not loaded by default — call `sensor.get_channels()` to populate them.
+
+You can also set the root of your sensor tree to a group that isn't the PRTG root. This is useful when your PRTG server has many objects, or to provide access to a user with restricted permissions. When you access an object further down the tree, you only have access to its direct children. For example, this shows the devices in the 4th group:
+
+```python
+from prtg import PrtgApi
+
+prtg = PrtgApi('192.168.1.1', 'prtgadmin', '0000000000')
+# or with an API key:
+prtg = PrtgApi('192.168.1.1', apikey='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA======')
 
 prtg.allgroups[3].devices
 ```
 
-Probe and group objects can have groups and devices as children, device objects have sensors as children and sensors can have channels as children. 
+Probes and groups can have groups and devices as children; devices have sensors; sensors have channels.
 
-```
-from prtg import prtg_api
+```python
+from prtg import PrtgApi
 
-prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
+prtg = PrtgApi('192.168.1.1', 'prtgadmin', '0000000000')
 
 probeobject = prtg.allprobes[0]
 groups = probeobject.groups
@@ -52,81 +81,170 @@ sensorobject.get_channels()
 channel = sensorobject.channels[0]
 ```
 
+## Methods
 
-Current methods and parameters (* = required) on all objects include:
-- rename()
-- pause(duration=0,message='') (pause and resume on a channel will change the parent sensor)  
-- resume()
-- clone(newname=''*,newplaceid=''*)
-- delete(confirm=True) (you can't delete the root object or channels)
-- refresh()
-- set_property(name*,value*)
-- get_property(name*)
-- set_additional_param(param*) (for custom script sensors)
-- set_interval(interval*)
-- set_host(host*) (ip address or hostname)
-- search_byid(id)
-- add_tags(['tag1','tag2']*,clear_old=False)
+Methods available on all objects (`*` marks required parameters):
 
-To come:
-- move
+- `rename(newname*)`
+- `pause(duration=0, message='')` — pause/resume on a channel acts on its parent sensor
+- `resume()`
+- `clone(newname*, newplaceid*)` — returns the new object's ID, or `None` if it can't be determined
+- `delete(confirm=True)` — can't delete the root object or channels
+- `refresh()`
+- `set_property(name*, value*)`
+- `get_property(name*)`
+- `set_interval(interval*)`
+- `add_tags(['tag1', 'tag2']*, clear_old=False)`
+- `acknowledge(message='')` — for sensors
+- `save_graph(graphid*, filepath*, size*, hidden_channels='', filetype='svg')`
+- `get_details()` — fetches the JSON sensordata blob
+- `get_historic_data(startdate*, enddate*, timeaverage*)` — historic CSV data; only meaningful on sensors. See [Historic data](#historic-data) below.
 
-If you are making small changes such as pause, resume, rename; the local data will update as you go. If you are doing larger changes you should refresh the data after each change. If you refresh the main prtg object it will refresh everything otherwise you can just refresh an object further down the tree to only refresh part of the local data. To refresh an object call the .refresh() method.
+Device-only:
 
-The set_property method is very powerful and flexible. You can change anything for an object that you can change in the objects settings tab in the web ui. I will add the more commonly used settings as seperate methods. You can use the get_property method to test the name of the property:
+- `set_host(host*)` — IP address or hostname
 
-```
-from prtg import prtg_api
+Sensor-only:
 
-prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
+- `set_additional_param(param*)` — for custom script sensors
+
+Top-level (`PrtgApi`) only:
+
+- `search_byid(oid*)`
+
+If you make small changes such as pause, resume, or rename, the local data updates as you go. For larger changes, call `.refresh()` afterwards. Refreshing the top-level object refreshes everything; refreshing a child only refreshes that subtree.
+
+`set_property` is powerful: you can change anything for an object that you can change in its Settings tab in the web UI. The common ones are exposed as dedicated methods. Use `get_property` to test a property name first:
+
+```python
+from prtg import PrtgApi
+
+prtg = PrtgApi('192.168.1.1', 'prtgadmin', '0000000000')
 prtg.get_property(name='location')
-#returns the location and sets prtg.location to the result.
+# returns the location and sets prtg.location to the result
 
-prtg.set_property(name='location',value='Canada')
+prtg.set_property(name='location', value='Canada')
 ```
 
-There are delays with some actions such as resuming so you should add time delays where appropriate.
+Some actions (like resume) take time to take effect server-side; add `time.sleep(...)` where appropriate.
 
-example usage:
+## Example
 
-```
+```python
 import time
-from prtg import prtg_api
+from prtg import PrtgApi
 
-prtg = prtg_api('192.168.1.1','prtgadmin','0000000000')
+prtg = PrtgApi('192.168.1.1', 'prtgadmin', '0000000000')
 
-for device in prtg.alldevices:
-  if device.id == "1234":
-    deviceobj = device
+deviceobj = prtg.search_byid("1234")
 
 deviceobj.pause()
-newid = deviceobj.clone(newname="cloned device",newplaceid="2468")
+newid = deviceobj.clone(newname="cloned device", newplaceid="2468")
 
 time.sleep(3)
-
 prtg.refresh()
 
 newdevice = prtg.search_byid(newid)
 newdevice.resume()
-
 ```
 
-The prtg_api class can be used with the root id set as the root group, a probe, or a group. If you wanted to manage a device or sensor and don't want to download the entire sensortree to loop through the results; you can use the prtg_device and prtg_sensor classes. For example:
+## Managing a single device or sensor
 
-```
+If you only want to manage one device or sensor and don't want to download the full sensortree, use `PrtgDevice` or `PrtgSensor`:
+
+```python
+from prtg import PrtgDevice, PrtgSensor
+
 host = '192.168.1.1'
 user = 'prtgadmin'
 passhash = '0000000'
-deviceid = '2025'
 apikey = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA======'
 
-device = prtg_device(host,user=user,passhash=passhash,deviceid=deviceid)
-#or with API Key
-device = prtg_device(host,apikey=apikey,deviceid=deviceid)
+deviceid = '2025'
+device = PrtgDevice(host, user=user, passhash=passhash, deviceid=deviceid)
+# or with API Key
+device = PrtgDevice(host, apikey=apikey, deviceid=deviceid)
 
 sensorid = '2123'
-
-sensor = prtg_device(host,user=user,passhash=passhash,sensorid=sensorid)
-#or with API Key
-sensor = prtg_device(host,apikey=apikey,sensorid=sensorid)
+sensor = PrtgSensor(host, user=user, passhash=passhash, sensorid=sensorid)
+# or with API Key
+sensor = PrtgSensor(host, apikey=apikey, sensorid=sensorid)
 ```
+
+## Historic data
+
+Use `get_historic_data` directly on any sensor object. It returns a dict keyed by column header, with parallel lists of values:
+
+```python
+from datetime import datetime, timedelta
+
+sensor = PrtgSensor(host, apikey=apikey, sensorid='2123')
+
+end = datetime.now()
+start = end - timedelta(hours=24)
+
+data = sensor.get_historic_data(
+    startdate=start,
+    enddate=end,
+    timeaverage=300,  # 5-minute averages
+)
+
+for ts, value in zip(data['Date Time'], data['Traffic In (kbit/s)']):
+    print(ts, value)
+```
+
+Date arguments may be `datetime` instances or pre-formatted `YYYY-MM-DD-HH-MM-SS` strings. `timeaverage` is the averaging interval in seconds (`0` = raw).
+
+**Note:** PRTG returns dates in US format (`MM/DD/YYYY HH:MM:SS AM/PM`) by default; servers with different regional settings may need adjustment in the parser. PRTG also appends a summary footer row (e.g. `"Sums (of 30 values)"`) which the parser detects and skips automatically.
+
+The previous standalone `PrtgHistoricData` class still exists but emits a `DeprecationWarning`. Migrate to `sensor.get_historic_data(...)` when convenient.
+
+## SSL / self-signed certificates
+
+`verify_ssl` defaults to `False` (matching the original module's behaviour — PRTG installs commonly use self-signed certs or chains that `requests` doesn't accept). Pass `verify_ssl=True` to opt in to certificate verification:
+
+```python
+prtg = PrtgApi('192.168.1.1', apikey='...', verify_ssl=True)
+```
+
+When `verify_ssl=False` the urllib3 `InsecureRequestWarning` is also suppressed for the process.
+
+If your PRTG server has a valid cert but `requests` rejects it, the most common cause is a missing intermediate certificate in the server's chain — browsers fix this automatically by fetching the intermediate, but `requests` doesn't. Run `openssl s_client -connect yourprtg:443 -showcerts` to check the chain.
+
+## Notes
+
+- Past versions used class names like `prtg_api`, `prtg_device`, `prtg_sensor`. These have been renamed to PEP-8 PascalCase: `PrtgApi`, `PrtgDevice`, `PrtgSensor`. **The old names still work as drop-in aliases** but emit `DeprecationWarning` on construction — use them as TODO markers to update your scripts at your own pace. The aliases will be removed in a future release.
+- All requests now have a configurable timeout (default 30 s). A hung PRTG server will raise `PrtgError` instead of blocking forever.
+- All API calls now use proper URL parameter encoding, so values with `&`, spaces, or unicode (in tag names, pause messages, etc.) round-trip correctly.
+
+## Repo layout
+
+```
+prtg/
+├── prtg.py             # the module
+├── README.md
+├── requirements.txt
+├── tests/
+│   └── test_prtg.py    # mocked unit tests
+└── clone_probe.py      # standalone diagnostic for the clone() endpoint
+```
+
+## Running tests
+
+The repo includes a unittest suite that mocks the HTTP layer — no live PRTG server needed. From the repo root:
+
+```
+python -m unittest discover tests
+```
+
+or with pytest:
+
+```
+pytest tests/
+```
+
+The tests cover URL parameter encoding, sensortree parsing, refresh reconciliation, the historic-data CSV parser (including the summary-footer-skip case), and the multi-shape `clone()` id extraction.
+
+## To come
+
+- `move`
