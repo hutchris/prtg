@@ -226,7 +226,6 @@ prtg/
 ├── requirements.txt
 ├── tests/
 │   └── test_prtg.py    # mocked unit tests
-└── clone_probe.py      # standalone diagnostic for the clone() endpoint
 ```
 
 ## Running tests
@@ -245,6 +244,3 @@ pytest tests/
 
 The tests cover URL parameter encoding, sensortree parsing, refresh reconciliation, the historic-data CSV parser (including the summary-footer-skip case), and the multi-shape `clone()` id extraction.
 
-## To come
-
-- `move`
