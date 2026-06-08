@@ -114,7 +114,7 @@ Top-level (`PrtgApi`) only:
 
 If you make small changes such as pause, resume, or rename, the local data updates as you go. For larger changes, call `.refresh()` afterwards. Refreshing the top-level object refreshes everything; refreshing a child only refreshes that subtree.
 
-`set_property` is powerful: you can change anything for an object that you can change in its Settings tab in the web UI. The common ones are exposed as dedicated methods. Use `get_property` to test a property name first:
+`set_property` is powerful: you can change anything for an object that you can change in its Settings tab in the web UI. The common ones are exposed as dedicated methods. You can find out what the names of properties are by browsing there in the PRTG GUI and looking in the HTML. Use `get_property` to test a property name first:
 
 ```python
 from prtg import PrtgApi
